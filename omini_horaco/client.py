@@ -24,6 +24,14 @@ DELAY_S = 0.4
 ATTEMPTS = 4
 
 
+class Rejected(PluginError):
+    """Wrong username or password: never retried, never hidden."""
+
+
+class Unanswered(PluginError):
+    """The switch dropped the connection on every attempt."""
+
+
 def credential(username: str, password: str) -> str:
     return hashlib.md5((username + password).encode()).hexdigest()
 
@@ -63,7 +71,12 @@ class Client:
         self.http = httpx.Client(
             base_url=host,
             timeout=timeout,
-            headers={"User-Agent": "omini-plugin-horaco", "Referer": host + "/"},
+            # One request per connection: the embedded server mishandles kept-alive ones.
+            headers={
+                "User-Agent": "omini-plugin-horaco",
+                "Referer": host + "/",
+                "Connection": "close",
+            },
             transport=transport,
         )
         # The session cookie is MD5(username + password), the same on every
@@ -88,7 +101,7 @@ class Client:
                 raise PluginError(f"cannot connect to {self.base}: {e}") from e
             except httpx.HTTPError as e:
                 last = e
-        raise PluginError(f"{self.base} did not answer {path}: {last}")
+        raise Unanswered(f"{self.base} did not answer {path}: {last}")
 
     def login(self) -> None:
         token = credential(self.username, self.password)
@@ -107,7 +120,7 @@ class Client:
             raise PluginError(f"the switch answered {r.status_code} to the login")
         # A wrong password brings the login form back with an error message.
         if "inpwd" in r.text and ("error" in r.text.lower() or "错误" in r.text):
-            raise PluginError("the switch rejected the username or password")
+            raise Rejected("the switch rejected the username or password")
         self.logged_in = True
 
     def page(self, path: str, form: dict[str, str] | None = None) -> str:
@@ -122,6 +135,8 @@ class Client:
             if form is None:
                 r = self._request("GET", path)
             else:
+                # The switch drops a form posted right after a page: wait more.
+                time.sleep(self.delay_s * 2)
                 r = self._request("POST", path, data=form, headers={"Referer": self.base + path})
             if r.status_code == 404:
                 return ""
@@ -134,7 +149,7 @@ class Client:
             if again:
                 log.info("session expired, signing in again")
                 self.login()
-        raise PluginError("the switch rejected the username or password")
+        raise Rejected("the switch rejected the username or password")
 
     def _keep(self, path: str, html: str) -> None:
         if not self.pages_dir:

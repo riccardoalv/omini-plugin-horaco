@@ -41,6 +41,14 @@ def test_mac_table_across_pages(switch, cfg):
     assert {e.port for e in sw.fdb} <= {f"Port {n}" for n in range(1, 10)}
 
 
+def test_a_dropped_page_never_fails_the_collection(switch, cfg):
+    switch.drop_paging = True
+    [sw] = collect(cfg)
+    assert len(sw.interfaces) == 9  # everything else is there
+    assert len(sw.fdb) == 10  # the MAC table's first page
+    assert switch.posts.count("/mac.cgi goto") == 4  # tried, with pauses
+
+
 def test_read_only(switch, cfg):
     collect(cfg)
     # Posted: turning the MAC table's page, nothing else (the session cookie

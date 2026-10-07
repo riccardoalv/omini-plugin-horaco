@@ -5,7 +5,7 @@ from __future__ import annotations
 from omini_sdk import Config, Device, FdbEntry, Interface, PluginError, log
 
 from omini_horaco import parse
-from omini_horaco.client import Client
+from omini_horaco.client import Client, Rejected, Unanswered
 
 INFO = "/info.cgi"
 STATS = "/port.cgi?page=stats"
@@ -24,11 +24,15 @@ def client_from(cfg: Config) -> Client:
 
 
 def optional(what: str, fn, default):
-    """Optional pages: one failing never fails the collection."""
+    """Optional pages: one failing never fails the collection (a wrong
+    password does)."""
     try:
         return fn()
-    except PluginError:
+    except Rejected:
         raise
+    except Unanswered as e:
+        log.warning("skipped %s: %s", what, e)
+        return default
     except Exception:
         log.exception("could not read %s", what)
         return default
@@ -42,10 +46,15 @@ def mac_table(c: Client) -> list[parse.FdbRow]:
     pages = min(parse.mac_pages(first), MAX_MAC_PAGES)
     per_page = parse.mac_per_page(first)
     for i in range(2, pages + 1):
-        form = {"cmd": "goto", "pageidx": str(i)}
-        if per_page:
-            form["perpage"] = per_page
-        out += parse.parse_mac_table(c.page(MACS, form=form))
+        # The fields in the order the browser sends them.
+        form = {"perpage": per_page} if per_page else {}
+        form |= {"pageidx": str(i), "cmd": "goto"}
+        try:
+            out += parse.parse_mac_table(c.page(MACS, form=form))
+        except Unanswered as e:
+            # Keep the pages read: Omini remembers where the rest were.
+            log.warning("MAC table: stopped at page %d of %d: %s", i, pages, e)
+            break
     # Pages may overlap while the table changes: one entry per MAC and port.
     seen: set[tuple[str, int]] = set()
     unique = []

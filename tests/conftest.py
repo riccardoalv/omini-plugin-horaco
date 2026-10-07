@@ -35,6 +35,7 @@ class FakeSwitch:
         # The switch remembers the last session: the cookie works until it
         # reboots or someone signs in with other credentials.
         self.session = True
+        self.drop_paging = False  # the switch drops the page navigation form
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(f"{request.method} {page_name(request.url)}")
@@ -42,6 +43,8 @@ class FakeSwitch:
         if request.method == "POST":
             form = dict(x.split("=", 1) for x in request.content.decode().split("&"))
             self.posts.append(f"{request.url.path} {form.get('cmd', '')}".strip())
+            if self.drop_paging and form.get("cmd") == "goto":
+                raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
             if request.url.path == "/login.cgi":
                 if form.get("Response") != credential(self.user, self.password):
                     return httpx.Response(200, text=LOGIN_FAILED)
