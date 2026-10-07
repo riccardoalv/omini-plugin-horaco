@@ -1,0 +1,29 @@
+id: horaco
+name: Horaco switch
+version: 0.1.0
+protocol: 1
+entrypoint: main.py
+timeout_s: 90
+description: >-
+  Horaco HC-SWTGW218AS and other managed switches with the same web interface
+  (keepLink, Sodola and similar Realtek-based OEM models): ports with link
+  speed, counters, MAC table, model, firmware and uptime. Read-only: it only
+  signs in and reads pages.
+author: Omini
+homepage: https://github.com/riccardoalv/omini-plugin-horaco
+fields:
+  - key: host
+    type: host
+    label: Address
+    required: true
+    help: The switch's IP address (its web interface), e.g. 192.168.1.96
+  - key: username
+    type: string
+    label: Username
+    default: admin
+    required: true
+  - key: password
+    type: secret
+    label: Password
+    required: true
+    help: The password of the switch's web interface.
