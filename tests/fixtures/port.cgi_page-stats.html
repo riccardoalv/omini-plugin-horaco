@@ -1,6 +1,187 @@
-<!-- Synthetic: packet counters only, as most of these models report. -->
-<html><body><table>
-<tr><th>Port</th><th>State</th><th>Link Status</th><th>TxGoodPkt</th><th>TxBadPkt</th><th>RxGoodPkt</th><th>RxBadPkt</th></tr>
-<tr><td>Port 1</td><td>Enable</td><td>Link Up</td><td>123456</td><td>0</td><td>654321</td><td>2</td></tr>
-<tr><td>Port 9</td><td>Enable</td><td>Link Up</td><td>0x10</td><td>0</td><td>1-5</td><td>0</td></tr>
-</table></body></html>
+<!-- Captured from a Horaco HC-SWTGW218AS (firmware V200.2.4); MAC addresses anonymized (vendor part kept). -->
+<html>
+
+<head>
+<title>Port Stistics</title>
+<link rel="stylesheet" type="text/css" href="/style.css">
+<script type="text/javascript">
+function loadstats()
+{
+	var statArr;
+	statArr = document.getElementById('port0-txgood').innerHTML.split('-');
+	document.getElementById('port0-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port0-rxgood').innerHTML.split('-');
+	document.getElementById('port0-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port0-txgoodByte').innerHTML.split('-');
+	document.getElementById('port0-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port0-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port0-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port1-txgood').innerHTML.split('-');
+	document.getElementById('port1-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port1-rxgood').innerHTML.split('-');
+	document.getElementById('port1-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port1-txgoodByte').innerHTML.split('-');
+	document.getElementById('port1-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port1-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port1-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port2-txgood').innerHTML.split('-');
+	document.getElementById('port2-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port2-rxgood').innerHTML.split('-');
+	document.getElementById('port2-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port2-txgoodByte').innerHTML.split('-');
+	document.getElementById('port2-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port2-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port2-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port3-txgood').innerHTML.split('-');
+	document.getElementById('port3-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port3-rxgood').innerHTML.split('-');
+	document.getElementById('port3-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port3-txgoodByte').innerHTML.split('-');
+	document.getElementById('port3-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port3-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port3-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port4-txgood').innerHTML.split('-');
+	document.getElementById('port4-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port4-rxgood').innerHTML.split('-');
+	document.getElementById('port4-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port4-txgoodByte').innerHTML.split('-');
+	document.getElementById('port4-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port4-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port4-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port5-txgood').innerHTML.split('-');
+	document.getElementById('port5-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port5-rxgood').innerHTML.split('-');
+	document.getElementById('port5-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port5-txgoodByte').innerHTML.split('-');
+	document.getElementById('port5-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port5-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port5-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port6-txgood').innerHTML.split('-');
+	document.getElementById('port6-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port6-rxgood').innerHTML.split('-');
+	document.getElementById('port6-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port6-txgoodByte').innerHTML.split('-');
+	document.getElementById('port6-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port6-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port6-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port7-txgood').innerHTML.split('-');
+	document.getElementById('port7-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port7-rxgood').innerHTML.split('-');
+	document.getElementById('port7-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port7-txgoodByte').innerHTML.split('-');
+	document.getElementById('port7-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port7-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port7-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port8-txgood').innerHTML.split('-');
+	document.getElementById('port8-txgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port8-rxgood').innerHTML.split('-');
+	document.getElementById('port8-rxgood').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port8-txgoodByte').innerHTML.split('-');
+	document.getElementById('port8-txgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+	statArr = document.getElementById('port8-rxgoodByte').innerHTML.split('-');
+	document.getElementById('port8-rxgoodByte').innerHTML=parseInt(statArr[0]*4294967296)+parseInt(statArr[1]);
+}
+</script>
+</head>
+
+<body onload="loadstats()">
+
+<h3>Port Statistics</h3><form method="post" action="/port.cgi?page=stats">
+<div class="tblcfgdiv"><table>
+	<tr>
+		<th style="width:100px;">Port</th>
+		<th style="width:118px;">State</th>
+		<th style="width:118px;">Link Status</th>
+		<th style="width:128px;">TxGoodPkt</th>
+		<th style="width:128px;">RxGoodPkt</th>
+		<th style="width:128px;">TxGoodBytes</th>
+		<th style="width:128px;">RxGoodBytes</th>
+	</tr>
+	<tr>
+		<td>Port 1</td>
+		<td>Enable</td>
+		<td>Link Up</td>
+		<td id=port0-txgood>0-38208279</td>
+		<td id=port0-rxgood>0-168658866</td>
+		<td id=port0-txgoodByte>0-3711982697</td>
+		<td id=port0-rxgoodByte>57-4000784606</td>
+	</tr>
+	<tr>
+		<td>Port 2</td>
+		<td>Enable</td>
+		<td>Link Up</td>
+		<td id=port1-txgood>0-25396131</td>
+		<td id=port1-rxgood>0-5519087</td>
+		<td id=port1-txgoodByte>6-2217893253</td>
+		<td id=port1-rxgoodByte>0-1602534229</td>
+	</tr>
+	<tr>
+		<td>Port 3</td>
+		<td>Enable</td>
+		<td>Link Down</td>
+		<td id=port2-txgood>0-0</td>
+		<td id=port2-rxgood>0-0</td>
+		<td id=port2-txgoodByte>0-0</td>
+		<td id=port2-rxgoodByte>0-0</td>
+	</tr>
+	<tr>
+		<td>Port 4</td>
+		<td>Enable</td>
+		<td>Link Down</td>
+		<td id=port3-txgood>0-103611533</td>
+		<td id=port3-rxgood>0-23193383</td>
+		<td id=port3-txgoodByte>28-2575443656</td>
+		<td id=port3-rxgoodByte>1-2808994279</td>
+	</tr>
+	<tr>
+		<td>Port 5</td>
+		<td>Enable</td>
+		<td>Link Up</td>
+		<td id=port4-txgood>0-723354933</td>
+		<td id=port4-rxgood>0-653763094</td>
+		<td id=port4-txgoodByte>132-3567895656</td>
+		<td id=port4-rxgoodByte>27-3204539665</td>
+	</tr>
+	<tr>
+		<td>Port 6</td>
+		<td>Enable</td>
+		<td>Link Down</td>
+		<td id=port5-txgood>0-0</td>
+		<td id=port5-rxgood>0-0</td>
+		<td id=port5-txgoodByte>0-0</td>
+		<td id=port5-rxgoodByte>0-0</td>
+	</tr>
+	<tr>
+		<td>Port 7</td>
+		<td>Enable</td>
+		<td>Link Down</td>
+		<td id=port6-txgood>0-0</td>
+		<td id=port6-rxgood>0-0</td>
+		<td id=port6-txgoodByte>0-0</td>
+		<td id=port6-rxgoodByte>0-0</td>
+	</tr>
+	<tr>
+		<td>Port 8</td>
+		<td>Enable</td>
+		<td>Link Down</td>
+		<td id=port7-txgood>0-0</td>
+		<td id=port7-rxgood>0-0</td>
+		<td id=port7-txgoodByte>0-0</td>
+		<td id=port7-rxgoodByte>0-0</td>
+	</tr>
+	<tr>
+		<td>Port 9</td>
+		<td>Enable</td>
+		<td>Link Up</td>
+		<td id=port8-txgood>0-843687972</td>
+		<td id=port8-rxgood>0-873661431</td>
+		<td id=port8-txgoodByte>87-1949350326</td>
+		<td id=port8-rxgoodByte>168-1287722246</td>
+	</tr>
+</table>
+<br style="line-height:50%">
+<input type="submit" name="submit" value="Clear">
+<input type="hidden" name="cmd" value="stats">
+</div></form>
+</body>
+</html>

@@ -35,17 +35,22 @@ class FakeSwitch:
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(f"{request.method} {page_name(request.url)}")
+        form = {}
         if request.method == "POST":
-            self.posts.append(request.url.path)
             form = dict(x.split("=", 1) for x in request.content.decode().split("&"))
-            if form.get("Response") != credential(self.user, self.password):
-                return httpx.Response(200, text=LOGIN_FAILED)
-            return httpx.Response(200, text="<html>ok</html>")
+            self.posts.append(f"{request.url.path} {form.get('cmd', '')}".strip())
+            if request.url.path == "/login.cgi":
+                if form.get("Response") != credential(self.user, self.password):
+                    return httpx.Response(200, text=LOGIN_FAILED)
+                return httpx.Response(200, text="<html>ok</html>")
         cookie = request.headers.get("cookie", "")
         if f"admin={credential(self.user, self.password)}" not in cookie or self.expire_once:
             self.expire_once = False
             return httpx.Response(200, text=REDIRECT)
-        body = self.pages.get(page_name(request.url))
+        name = page_name(request.url)
+        if form.get("cmd") == "goto":
+            name += f"_pageidx-{form['pageidx']}"
+        body = self.pages.get(name)
         if body is None:
             return httpx.Response(404, text="Not Found")
         return httpx.Response(200, text=body)

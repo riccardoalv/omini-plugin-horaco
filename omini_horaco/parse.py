@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 MAC = re.compile(
     r"([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?([0-9a-f]{2})[:-]?"
@@ -24,18 +24,30 @@ def norm_mac(text: str) -> str | None:
     return ":".join(g.lower() for g in m.groups()) if m else None
 
 
-def cell_text(c: Tag) -> str:
-    return " ".join(c.get_text(" ", strip=True).split())
+TABLE = re.compile(r"<table\b[^>]*>(.*?)</table>", re.S | re.I)
+ROW = re.compile(r"<tr\b[^>]*>(.*?)(?=<tr\b|</table>|$)", re.S | re.I)
+# A cell runs until the next cell or the end of the row: the firmware closes
+# <th> with </td>, which an HTML parser turns into nested cells.
+CELL = re.compile(r"<t[hd]\b[^>]*>(.*?)(?=<t[hd]\b|</tr>|$)", re.S | re.I)
+INPUT_VALUE = re.compile(r"<input\b[^>]*\bvalue=[\"']([^\"']*)[\"']", re.I)
 
 
-def rows(table: Tag) -> list[list[str]]:
-    return [[cell_text(c) for c in tr.find_all(["td", "th"])] for tr in table.find_all("tr")]
+def cell_text(raw: str) -> str:
+    text = BeautifulSoup(raw, "html.parser").get_text(" ", strip=True)
+    if not text:
+        # An editable value (e.g. the device name) lives in an input box.
+        m = INPUT_VALUE.search(raw)
+        if m and 'type="text"' in raw.lower().replace("'", '"'):
+            text = m.group(1)
+    return " ".join(text.split())
 
 
 def tables(html: str) -> list[list[list[str]]]:
-    soup = BeautifulSoup(html or "", "html.parser")
-    # Innermost tables only: some pages nest a layout table around the data.
-    return [rows(t) for t in soup.find_all("table") if not t.find("table")]
+    out = []
+    for body in TABLE.findall(html or ""):
+        rows = [[cell_text(c) for c in CELL.findall(r)] for r in ROW.findall(body)]
+        out.append([r for r in rows if r])
+    return out
 
 
 def port_number(text: str) -> int | None:
@@ -238,9 +250,21 @@ def parse_stats(html: str, ports: dict[int, Port]) -> None:
         return
 
 
+PANEL_PORT = re.compile(
+    r"""name=["']p(\d+)_[^"']*["'][^>]*>\s*<div\b[^>]*class=["']([^"']+)""", re.I
+)
+
+
 def parse_panel(html: str, count: int) -> dict[int, str]:
-    """Copper or fibre per port from the front-panel images (RJ45_*, Fiber_*),
-    in physical order. Nothing when the count does not match the ports."""
+    """Copper or fibre per port from the front panel: one element per port
+    (``<div class="port" name="p9_l1_s4..."><div class="portfiberlnkup">``),
+    or images named RJ45_* / Fiber_* on other firmware, in physical order."""
+    found = {
+        int(n): ("sfp" if "fiber" in cls.lower() or "sfp" in cls.lower() else "rj45")
+        for n, cls in PANEL_PORT.findall(html or "")
+    }
+    if found:
+        return found if len(found) == count else {}
     media = []
     for img in BeautifulSoup(html or "", "html.parser").find_all("img"):
         src = str(img.get("src") or "").rsplit("/", 1)[-1].lower()
@@ -288,10 +312,14 @@ def parse_mac_table(html: str) -> list[FdbRow]:
 
 
 def mac_pages(html: str) -> int:
-    """How many pages the MAC table has (a page selector or 'n/N'), 1 if none."""
+    """Pages of the MAC table ('1 / <label id='totalpage'>2</label> Pages'), 1 if none."""
+    m = re.search(r"id=['\"]?totalpage['\"]?[^>]*>\s*(\d+)", html or "", re.I)
+    return max(1, int(m.group(1))) if m else 1
+
+
+def mac_per_page(html: str) -> str | None:
+    """The selected 'items per page' option, sent back when turning pages."""
     soup = BeautifulSoup(html or "", "html.parser")
-    sel = soup.find("select", attrs={"name": re.compile("page", re.I)})
-    if sel:
-        return max(1, len(sel.find_all("option")))
-    m = re.search(r"\b\d+\s*/\s*(\d+)\b", soup.get_text(" "))
-    return int(m.group(1)) if m else 1
+    sel = soup.find("select", attrs={"name": "perpage"})
+    opt = sel and (sel.find("option", selected=True) or sel.find("option"))
+    return str(opt.get("value")) if opt else None

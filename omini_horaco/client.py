@@ -7,7 +7,7 @@ requests go one at a time, with a short pause between them, and are retried.
 Signing in mirrors the login page: the browser sends MD5(username + password)
 as the form's ``Response`` field and keeps it in the ``admin`` cookie, which is
 what authenticates every later page. Only pages are read: nothing is posted
-besides the login form.
+besides the login form and page navigation of the MAC table.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from omini_sdk import PluginError, log
 
 # Pause between requests and attempts per page (see the module docstring).
 DELAY_S = 0.4
-ATTEMPTS = 3
+ATTEMPTS = 4
 
 
 def credential(username: str, password: str) -> str:
@@ -73,9 +73,10 @@ class Client:
 
     def _request(self, method: str, path: str, **kw) -> httpx.Response:
         last: Exception | None = None
-        for _ in range(ATTEMPTS):
+        for attempt in range(ATTEMPTS):
             if self.delay_s:
-                time.sleep(self.delay_s)
+                # Longer pauses after a dropped connection: the server needs time.
+                time.sleep(self.delay_s * (1 + 3 * attempt))
             try:
                 return self.http.request(method, path, **kw)
             except httpx.ConnectError as e:
@@ -105,19 +106,26 @@ class Client:
             raise PluginError("the switch rejected the username or password")
         self.logged_in = True
 
-    def page(self, path: str) -> str:
-        """GETs a page, signing in first (and again when the session expired)."""
+    def page(self, path: str, form: dict[str, str] | None = None) -> str:
+        """Reads a page, signing in first (and again when the session expired).
+        ``form`` turns a page of a paged table (only ``cmd=goto`` is allowed:
+        other commands of those forms change the switch, e.g. clear a table)."""
+        if form is not None and form.get("cmd") != "goto":
+            raise ValueError("only page navigation may be posted")
         if not self.logged_in:
             self.login()
         for again in (True, False):
-            r = self._request("GET", path)
+            if form is None:
+                r = self._request("GET", path)
+            else:
+                r = self._request("POST", path, data=form, headers={"Referer": self.base + path})
             if r.status_code == 404:
                 return ""
             if r.status_code >= 400:
                 raise PluginError(f"the switch answered {r.status_code} for {path}")
             html = r.text
             if not signed_out(html):
-                self._keep(path, html)
+                self._keep(path + (f"&pageidx={form['pageidx']}" if form else ""), html)
                 return html
             if again:
                 log.info("session expired, signing in again")

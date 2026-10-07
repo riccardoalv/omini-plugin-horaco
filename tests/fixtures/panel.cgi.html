@@ -1,6 +1,189 @@
-<!-- Synthetic: front panel, eight copper ports and one SFP+ cage. -->
-<html><body>
-<img src="/RJ45_up.png"><img src="/RJ45_down.png"><img src="/RJ45_up.png"><img src="/RJ45_down.png">
-<img src="/RJ45_down.png"><img src="/RJ45_down.png"><img src="/RJ45_down.png"><img src="/RJ45_up.png">
-<img src="/Fiber_up.png"><img src="/logo.png">
-</body></html>
+<!-- Captured from a Horaco HC-SWTGW218AS (firmware V200.2.4); MAC addresses anonymized (vendor part kept). -->
+<html>
+<head>
+<title>Top Frame</title>
+<link rel="stylesheet" type="text/css" href="/panel.css">
+<script type="text/javascript">
+function changeLanguage()
+{
+	var adom1 = document.getElementById('langsel');
+	adom1.submit();
+}
+function showPortStatusTip(obj)
+{
+	var rect = obj.getBoundingClientRect();
+	var str = obj.getAttribute('name');
+	var spd = ["10Mbps","100Mbps","1000Mbps","500Mbps","10Gbps","2.5Gbps","5Gbps","-"];
+	var dup = ["Half", "Full"];
+	var fc  = ["Off", "On"];
+	var port = "Port "+str[1];
+	var link1 = (str[4] == '2')?"Disable":((str[4] == '0') ? "Down":"Link Up");
+	var link = "Link： "+link1;
+	var speed = "Speed： "+spd[parseInt(str[7])];
+	var duplex = "Duplex Mode： "+dup[parseInt(str[10])];
+	var flowctrl = "Flow Control： "+fc[parseInt(str[13])];
+	document.getElementById('tipspanPort').innerHTML = port;
+	document.getElementById('tipspanLink').innerHTML = link;
+	document.getElementById('tipspanSpeed').innerHTML = speed;
+	document.getElementById('tipspanDuplex').innerHTML = duplex;
+	document.getElementById('tipspanFc').innerHTML = flowctrl;
+	document.getElementById('tipbox').style.left = rect.left-37;
+	document.getElementById('tipbox').style.visibility = "visible";
+}
+function hiddenPortStatusTip(obj)
+{
+document.getElementById('tipbox').style.visibility = "hidden";
+}
+</script>
+</head>
+<body>
+<script>
+function doreload() {
+  timer++;
+  if (timer>=10)window.location.replace("panel.cgi");
+}
+function reloadAll() {
+  setInterval("doreload();", 1000);
+}
+  var timer = 0;
+  reloadAll();
+</script>
+<center>
+<div class="topdiv">
+<div class="paneldiv">
+<table class="paneltable">
+	<tr>
+	<td>1</td>
+	<td>2</td>
+	<td>3</td>
+	<td>4</td>
+	<td>5</td>
+	<td>6</td>
+	<td>7</td>
+	<td>8</td>
+	<td>9</td>
+	</tr>
+	<tr>
+	<td>
+		<div class="port" name="p1_l1_s2_d1_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="port2p5"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p2_l1_s2_d1_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="port2p5"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p3_l0_s7_d0_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portlnkdown"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p4_l0_s7_d0_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portlnkdown"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p5_l1_s5_d1_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="port2p5"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p6_l0_s7_d0_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portlnkdown"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p7_l0_s7_d0_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portlnkdown"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p8_l0_s7_d0_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portlnkdown"></div>
+		</div>
+	</td>
+	<td>
+		<div class="port" name="p9_l1_s4_d1_f0" onmouseover="showPortStatusTip(this)" onmouseout="hiddenPortStatusTip(this)">
+			<div class="portfiberlnkup"></div>
+		</div>
+	</td>
+	</tr>
+</table>
+<div class="tipbox" id="tipbox">
+	<span id="tipspanPort"></span>
+	<span id="tipspanLink"></span>
+	<span id="tipspanSpeed"></span>
+	<span id="tipspanDuplex"></span>
+	<span id="tipspanFc"></span>
+</div>
+</div>
+<div class="sysdiv">
+<form method="post" action="/savecfg.cgi" style="display:inline-block">
+	<input type="submit" name="savecfg" value="Save configuration" class="sysbutton">
+</form>
+<input type="button" name="logout" value="Logout" onclick='location.href=("logout.cgi")'>
+</div>
+</div>
+<br>
+<div style="width:708px;margin-left:-300px"><table>
+	<tr>
+		<td>
+			<div class="indicon" style="background-color:rgb(72,125,233);"></div>
+		</td>
+		<td style="width:60px;text-align:left">
+			<label>10G</label>
+		</td>
+		<td>
+			<div class="indicon" style="background-color:rgb(82,151,199);"></div>
+		</td>
+		<td style="width:60px;text-align:left">
+			<label>2.5G/1G</label>
+		</td>
+		<td>
+			<div class="indicon" style="background-color:rgb(106,185,196);"></div>
+		</td>
+		<td style="width:280px;text-align:left">
+			<label>100M/10M</label>
+		</td>
+		<td>
+			<div class="arrow" style="background-color:rgb(105,105,105);"></div>
+		</td>
+		<td>
+			<div class="port" style="width:15px;transform:scale(0.4,0.4)">
+				<div class="portlnkdown"></div>
+			</div>
+		</td>
+		<td style="width:35px;text-align:left;padding-left:5px">
+			<label>Coper</label>
+		</td>
+		<td>
+			<div class="port" style="width:15px;transform:scale(0.4,0.4)">
+				<div class="portfiber"></div>
+			</div>
+		</td>
+		<td>
+			<label>Fiber</label>
+		</td>
+  </tr>
+	<tr>
+		<td>
+			<div class="indicon" style="background-color:rgb(126,135,146);"></div>
+		</td>
+		<td style="width:50px;text-align:left">
+			<label>Down</label>
+		</td>
+		<td>
+			<div class="indicon" style="background-color:rgb(190,190,190);"></div>
+		</td>
+		<td style="width:60px;text-align:left">
+			<label>Disable</label>
+		</td>
+	</tr>
+</table>
+</div>
+<br>
+<hr style="height:5px;border:0;background-color:#dfdfdf">
+</body>
+</html>

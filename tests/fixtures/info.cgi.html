@@ -1,23 +1,114 @@
-<!-- Synthetic: the layout of the HC-SWTGW218AS info page (system grid + port status). -->
-<html><head><title>System Information</title></head><body><center>
-<fieldset><legend>System Info</legend><table>
-<tr><th>Device Model</th><td>HC-SWTGW218AS</td></tr>
-<tr><th>MAC Address</th><td>1C:2A:A3:00:33:44</td></tr>
-<tr><th>IP Address</th><td>192.168.1.96</td></tr>
-<tr><th>Netmask</th><td>255.255.255.0</td></tr>
-<tr><th>Gateway</th><td>192.168.1.1</td></tr>
-<tr><th>Firmware Version</th><td>V1.9</td></tr>
-<tr><th>Sys Uptime</th><td>3Day14Hour22Minute8Second</td></tr>
-</table></fieldset>
-<fieldset><legend>Port Status</legend><table>
-<tr><th>Port</th><th>Link</th><th>Duplex</th><th>Speed</th><th>Flow Control</th></tr>
-<tr><td>Port 1</td><td>Link Up</td><td>Full</td><td>2500M</td><td>Disabled</td></tr>
-<tr><td>Port 2</td><td>Link Down</td><td></td><td></td><td>Disabled</td></tr>
-<tr><td>Port 3</td><td>Link Up</td><td>Half</td><td>100M</td><td>Disabled</td></tr>
-<tr><td>Port 4</td><td>Link Down</td><td></td><td></td><td>Disabled</td></tr>
-<tr><td>Port 5</td><td>Link Down</td><td></td><td></td><td>Disabled</td></tr>
-<tr><td>Port 6</td><td>Link Down</td><td></td><td></td><td>Disabled</td></tr>
-<tr><td>Port 7</td><td>Link Down</td><td></td><td></td><td>Disabled</td></tr>
-<tr><td>Port 8</td><td>Link Up</td><td>Full</td><td>1000M</td><td>Disabled</td></tr>
-<tr><td>Port 9</td><td>Link Up</td><td>Full</td><td>10G</td><td>Disabled</td></tr>
-</table></fieldset></center></body></html>
+<!-- Captured from a Horaco HC-SWTGW218AS (firmware V200.2.4); MAC addresses anonymized (vendor part kept). -->
+<html>
+<head>
+<title>System Information</title>
+<link rel="stylesheet" type="text/css" href="/style.css">
+<style type="text/css">
+#infotbl{width:830px}
+</style>
+</head>
+
+<body>
+<center>
+
+<div><p>Device Info</p><form method="post" name="info" id="infofrm" action="/info.cgi">
+<table class="infotbl" id="infotbl">
+	<tr>
+		<th style="text-align:center">Device Name:</td>
+		<td><input type="text" size="18" name="devName" value="HC-SWTGW218AS" maxlength="32">                            <input type="submit" value="Modify" id="infosub"></td>
+		<th style="width:138px;text-align:center">Sys Uptime:</td>
+		<td>14Day8Hour57Minute43Second</td>
+	</tr>
+	<tr>
+		<th id='deviceType' style="text-align:center">Device Model:</td>
+		<td>HC-SWTGW218AS</td>
+		<th id='firewareVer' style="text-align:center">Firmware Version:</td>
+		<td>V200.2.4</td>
+	</tr>
+	<tr>
+		<th style="text-align:center">IP Address:</td>
+		<td>192.168.1.96</td>
+		<th style="text-align:center">Netmask:</td>
+		<td>255.255.255.0</td>
+	</tr>
+	<tr>
+		<th style="text-align:center">MAC Address:</td>
+		<td>1C:2A:A3:50:2C:33</td>
+	</tr>
+</table>
+</form>
+<p>Port Status</p><table>
+	<tr>
+		<th width="108">Port</th>
+		<th width="128">Link Status</th>
+		<th width="182">Duplex Status</th>
+		<th width="188">Nego Speed Status</th>
+		<th width="162">Flow Control</th>
+	</tr>
+	<tr>
+		<td>Port 1</td>
+		<td>Link Up</td>
+		<td>Full Duplex</td>
+		<td>1000M</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 2</td>
+		<td>Link Up</td>
+		<td>Full Duplex</td>
+		<td>1000M</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 3</td>
+		<td>Link Down</td>
+		<td>Auto</td>
+		<td>Auto</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 4</td>
+		<td>Link Down</td>
+		<td>Auto</td>
+		<td>Auto</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 5</td>
+		<td>Link Up</td>
+		<td>Full Duplex</td>
+		<td>2500M</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 6</td>
+		<td>Link Down</td>
+		<td>Auto</td>
+		<td>Auto</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 7</td>
+		<td>Link Down</td>
+		<td>Auto</td>
+		<td>Auto</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 8</td>
+		<td>Link Down</td>
+		<td>Auto</td>
+		<td>Auto</td>
+		<td>Off</td>
+	</tr>
+	<tr>
+		<td>Port 9</td>
+		<td>Link Up</td>
+		<td>Full Duplex</td>
+		<td>10G</td>
+		<td>Off</td>
+	</tr>
+</table>
+</div></center>
+</body>
+</html>

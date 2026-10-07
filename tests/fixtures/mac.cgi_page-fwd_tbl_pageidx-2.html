@@ -1,6 +1,146 @@
-<!-- Synthetic: the MAC table, page 2 of 2. -->
-<html><body><table>
-<tr><th>No.</th><th>MAC Address</th><th>VLAN ID</th><th>Type</th><th>Port</th></tr>
-<tr><td>4</td><td>bc-24-11-aa-00-02</td><td>20</td><td>Dynamic</td><td>Port 3</td></tr>
-<tr><td>5</td><td>BC:24:11:AA:00:01</td><td>1</td><td>Dynamic</td><td>Port 1</td></tr>
-</table></body></html>
+<!-- Page 2, built from the captured page 1 from a Horaco HC-SWTGW218AS (firmware V200.2.4); MAC addresses anonymized (vendor part kept). -->
+<html>
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>MAC Address Information</title>
+<link rel="stylesheet" type="text/css" href="/style.css">
+<script type="text/javascript">
+function btnClick(id)
+{
+	if (id=='clr') {
+		document.getElementById('cmd').value = 'mactblclr';
+	}
+	else if (id=='next') { 
+		document.getElementById('cmd').value = 'nextpage';
+	}
+	else if (id=='prev') { 
+		document.getElementById('cmd').value = 'prevpage';
+	}
+	else if (id=='first') { 
+		document.getElementById('cmd').value = 'firstpage';
+	}
+	else if (id=='last') { 
+		document.getElementById('cmd').value = 'lastpage';
+	}
+	else if (id=='perpage') { 
+		document.getElementById('cmd').value = 'perpage';
+	}
+	else if (id=='goto') { 
+		var pageid=document.getElementById('pageidx').value;
+		var totalpage=parseInt(document.getElementById('totalpage').innerHTML);
+		var reg=/^[0-9]+/;
+		if ((!reg.test(pageid)) || (pageid > totalpage) || (pageid < 1)){
+			var adom1 = document.getElementById('tipbox');
+			var adomtip = document.getElementById('tipinfo');
+			adomtip.innerHTML='Invalid Page index';
+			adom1.style.display = "block";
+			return;
+		}
+		document.getElementById('cmd').value = 'goto';
+	}
+	document.fwd_tbl.submit();
+}
+function btnSearchClick(id)
+{
+	if (id=='search') {
+		var mac=document.getElementById('mac_search').value;
+		var reg=/^([a-fA-F0-9]{2}:){0,5}([a-fA-F0-9]{2}|[a-fA-F0-9]{2}:)$/;
+		if (!reg.test(mac)){
+			var adom1 = document.getElementById('tipbox');
+			var adomtip = document.getElementById('tipinfo');
+			adomtip.innerHTML='Invalid MAC Address format';
+			adom1.style.display = "block";
+			return;
+		}
+		document.getElementById('cmds').value = 'search';
+	}
+	else if (id=='clear') { 
+		document.getElementById('cmds').value = 'clear';
+	}
+	document.search_tbl.submit();
+}
+function tipboxbtnClick()
+{
+	var adom1 = document.getElementById('tipbox');
+	adom1.style.display = "none";
+}
+</script>
+</head>
+
+<body>
+<h3>MAC Address Table</h3>
+<div class="tipdiv" id="tipbox" style="margin-left:500px;display:none"><p style="margin-left:20px;color:red">Error</p><br>
+<p id='tipinfo' style="width:238;margin-left:60px"></p><br>
+<input type="button" value="Confirm" onclick="tipboxbtnClick()" style="margin-left:120px">
+</div>
+<form method="post" name = "search_tbl" action="/mac.cgi?page=search">
+<div class="tblcfgdiv"><table class="infotbl" style="width:820px">
+	<tr>
+		<td style="padding-left:0px;width:252px;"><input type="text" name="mac_search" value="" id='mac_search' maxlength="18"></td>
+		<td><input type="button" value="Search" id=search onclick="btnSearchClick(this.id)"></td>
+		<td><input type="button" value="Clear" id=clear onclick="btnSearchClick(this.id)"></td>
+		<td style="width:230px;"></td>
+		<td style="width:230px;"></td>
+	</tr>
+</table>
+<input type="hidden" id=cmds name="cmds" value="">
+</div>
+</form>
+<br>
+<form method="post" name = "fwd_tbl" action="/mac.cgi?page=fwd_tbl">
+<div class="tblcfgdiv"><table>
+	<tr>
+		<th style="width:230px;">MAC Address</th>
+		<th style="width:120px;">Type</th>
+		<th style="width:250px;">Port</th>
+		<th style="width:210px;">VLAN ID</th>
+	</tr>
+<tr>
+	<td >30:16:9D:00:00:00</td>
+	<td >dynamic</td>
+	<td >5</td>
+	<td >1</td>
+</tr>
+<tr>
+	<td >BC:24:11:00:00:01</td>
+	<td >dynamic</td>
+	<td >9</td>
+	<td >1</td>
+</tr>
+<tr>
+	<td >58:6D:67:00:00:02</td>
+	<td >dynamic</td>
+	<td >5</td>
+	<td >1</td>
+</tr>
+</table>
+<br style="line-height:50%">
+<table style="border-width:0px">
+	<td style="width:100px;border:0px"><label>Total 20 Items,</label></td>
+	<td style="width:145px;border:0px"><label>Current 11-20 Items,</label></td>
+	<td style="width:150px;border:0px">
+		<label>PerPage</label>
+		<select name='perpage' id='perpage' style="width:50px" onchange="btnClick(this.id)">
+			<option value="1" selected>10</option>
+			<option value="2" >20</option>
+			<option value="3" >30</option>
+		</select>
+		<label>Items</label>
+	</td>
+	<td style="width:32px;border:0px;font-size:16px;color:#000;transform:scaleY(1.5)"><label id=first onclick="btnClick(this.id)" style="cursor:pointer;"><<</label></td>
+	<td style="width:32px;border:0px;font-size:16px;color:#c3c3c3;transform:scaleY(1.5)"><label id=prev><</label></td>
+	<td style="width:18px;border:0px;">
+		<div style="display:flex;justify-content:center;align-items:center;width:20px;height:20px;background-color:rgb(62,140,213);color:#fff">1</div>
+	</td>
+	<td style="width:32px;border:0px;font-size:16px;color:#000;transform:scaleY(1.5)"><label id=next onclick="btnClick(this.id)" style="cursor:pointer;">></label></td>
+	<td style="width:32px;border:0px;font-size:16px;color:#000;transform:scaleY(1.5)"><label id=last onclick="btnClick(this.id)" style="cursor:pointer;">>></label></td>
+	<td style="width:95px;border:0px"><input type='text' name='pageidx' id='pageidx' maxlength='3' style="width:30px" value="2"> /<label id='totalpage'>2 </label>Pages</td>
+	<td style="width:55px;border:0px"><input type='button' value="Goto" id=goto onclick="btnClick(this.id)" style="width:50px;height:25px"></td>
+	<td style="width:115px;border:0px"></td>
+</table>
+<input type="hidden" id=cmd name="cmd" value="">
+</div>
+</form>
+</body>
+</html>

@@ -35,12 +35,18 @@ def optional(what: str, fn, default):
 
 
 def mac_table(c: Client) -> list[parse.FdbRow]:
+    """All pages of the MAC table. The firmware turns pages with its form
+    (cmd=goto), which changes nothing on the switch: it only picks the page."""
     first = c.page(MACS)
     out = parse.parse_mac_table(first)
     pages = min(parse.mac_pages(first), MAX_MAC_PAGES)
+    per_page = parse.mac_per_page(first)
     for i in range(2, pages + 1):
-        out += parse.parse_mac_table(c.page(f"{MACS}&pageidx={i}"))
-    # Pages may overlap: keep one entry per MAC and port.
+        form = {"cmd": "goto", "pageidx": str(i)}
+        if per_page:
+            form["perpage"] = per_page
+        out += parse.parse_mac_table(c.page(MACS, form=form))
+    # Pages may overlap while the table changes: one entry per MAC and port.
     seen: set[tuple[str, int]] = set()
     unique = []
     for r in out:
