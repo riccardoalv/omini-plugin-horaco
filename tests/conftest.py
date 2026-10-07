@@ -32,6 +32,9 @@ class FakeSwitch:
         self.calls = []
         self.posts = []
         self.expire_once = False
+        # The switch remembers the last session: the cookie works until it
+        # reboots or someone signs in with other credentials.
+        self.session = True
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(f"{request.method} {page_name(request.url)}")
@@ -42,10 +45,13 @@ class FakeSwitch:
             if request.url.path == "/login.cgi":
                 if form.get("Response") != credential(self.user, self.password):
                     return httpx.Response(200, text=LOGIN_FAILED)
+                self.session = True
                 return httpx.Response(200, text="<html>ok</html>")
         cookie = request.headers.get("cookie", "")
-        if f"admin={credential(self.user, self.password)}" not in cookie or self.expire_once:
+        valid = f"admin={credential(self.user, self.password)}" in cookie
+        if not valid or not self.session or self.expire_once:
             self.expire_once = False
+            self.session = self.session and valid
             return httpx.Response(200, text=REDIRECT)
         name = page_name(request.url)
         if form.get("cmd") == "goto":

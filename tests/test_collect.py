@@ -43,8 +43,9 @@ def test_mac_table_across_pages(switch, cfg):
 
 def test_read_only(switch, cfg):
     collect(cfg)
-    # Posted: the login form and turning the MAC table's page, nothing else.
-    assert switch.posts == ["/login.cgi", "/mac.cgi goto"]
+    # Posted: turning the MAC table's page, nothing else (the session cookie
+    # is valid, so no login either).
+    assert switch.posts == ["/mac.cgi goto"]
 
 
 def test_only_page_navigation_is_posted():
@@ -60,11 +61,20 @@ def test_keeps_the_last_pages(switch, cfg):
     assert "info.cgi.html" in kept and "mac.cgi_page-fwd_tbl_pageidx-2.html" in kept
 
 
+def test_signs_in_only_when_the_switch_asks(switch, cfg):
+    switch.session = False  # e.g. after a reboot
+    collect(cfg)
+    assert switch.posts.count("/login.cgi") == 1
+    switch.posts.clear()
+    collect(cfg)  # the next collection reuses the session
+    assert "/login.cgi" not in switch.posts
+
+
 def test_signs_in_again_when_the_session_expires(switch, cfg):
     switch.expire_once = True
     [sw] = collect(cfg)
     assert sw.model == "HC-SWTGW218AS"
-    assert switch.posts[:2] == ["/login.cgi", "/login.cgi"]
+    assert switch.posts[:1] == ["/login.cgi"]  # only when the switch asked
 
 
 def test_wrong_password(switch, cfg):

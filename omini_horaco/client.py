@@ -66,7 +66,12 @@ class Client:
             headers={"User-Agent": "omini-plugin-horaco", "Referer": host + "/"},
             transport=transport,
         )
-        self.logged_in = False
+        # The session cookie is MD5(username + password), the same on every
+        # sign-in: pages are read with it directly, and the login form is only
+        # posted when the switch asks for it (it keeps a single session and
+        # drops connections when signed in again and again).
+        self.http.cookies.set("admin", credential(username, password))
+        self.logged_in = True
 
     def close(self) -> None:
         self.http.close()
@@ -87,7 +92,6 @@ class Client:
 
     def login(self) -> None:
         token = credential(self.username, self.password)
-        self.http.cookies.set("admin", token)
         r = self._request(
             "POST",
             "/login.cgi",
