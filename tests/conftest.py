@@ -36,6 +36,7 @@ class FakeSwitch:
         # reboots or someone signs in with other credentials.
         self.session = True
         self.drop_paging = False  # the switch drops the page navigation form
+        self.drop_paging_times = 0  # ... only this many times, then answers
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(f"{request.method} {page_name(request.url)}")
@@ -43,7 +44,8 @@ class FakeSwitch:
         if request.method == "POST":
             form = dict(x.split("=", 1) for x in request.content.decode().split("&"))
             self.posts.append(f"{request.url.path} {form.get('cmd', '')}".strip())
-            if self.drop_paging and form.get("cmd") == "goto":
+            if form.get("cmd") == "goto" and (self.drop_paging or self.drop_paging_times > 0):
+                self.drop_paging_times -= 1
                 raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
             if request.url.path == "/login.cgi":
                 if form.get("Response") != credential(self.user, self.password):
@@ -67,6 +69,7 @@ class FakeSwitch:
 
 @pytest.fixture
 def switch(monkeypatch):
+    monkeypatch.setattr(collect_module, "BUSY_PAUSE_S", 0)
     fake = FakeSwitch()
     monkeypatch.setattr(
         collect_module,

@@ -46,7 +46,13 @@ def test_a_dropped_page_never_fails_the_collection(switch, cfg):
     [sw] = collect(cfg)
     assert len(sw.interfaces) == 9  # everything else is there
     assert len(sw.fdb) == 10  # the MAC table's first page
-    assert switch.posts.count("/mac.cgi goto") == 4  # tried, with pauses
+    assert switch.posts.count("/mac.cgi goto") == 8  # two rounds of tries, with a pause
+
+
+def test_paging_waits_out_a_busy_switch(switch, cfg):
+    switch.drop_paging_times = 5  # the first round fails, the second gets through
+    [sw] = collect(cfg)
+    assert len(sw.fdb) == 13  # both pages
 
 
 def test_read_only(switch, cfg):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 from omini_sdk import Config, Device, FdbEntry, Interface, PluginError, log
 
 from omini_horaco import parse
@@ -38,6 +40,19 @@ def optional(what: str, fn, default):
         return default
 
 
+# The switch sometimes refuses every connection for a few seconds (it closes
+# them at once); one more round of tries after this pause usually gets through.
+BUSY_PAUSE_S = 6
+
+
+def page_patiently(c: Client, form: dict[str, str]) -> str:
+    try:
+        return c.page(MACS, form=form)
+    except Unanswered:
+        time.sleep(BUSY_PAUSE_S)
+        return c.page(MACS, form=form)
+
+
 def mac_table(c: Client) -> list[parse.FdbRow]:
     """All pages of the MAC table. The firmware turns pages with its form
     (cmd=goto), which changes nothing on the switch: it only picks the page."""
@@ -50,7 +65,7 @@ def mac_table(c: Client) -> list[parse.FdbRow]:
         form = {"perpage": per_page} if per_page else {}
         form |= {"pageidx": str(i), "cmd": "goto"}
         try:
-            out += parse.parse_mac_table(c.page(MACS, form=form))
+            out += parse.parse_mac_table(page_patiently(c, form))
         except Unanswered as e:
             # Keep the pages read: Omini remembers where the rest were.
             log.warning("MAC table: stopped at page %d of %d: %s", i, pages, e)
