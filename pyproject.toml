@@ -2,7 +2,7 @@
 # own copy of omini-sdk to the plugin's environment.
 [project]
 name = "omini-plugin-horaco"
-version = "0.1.0"
+version = "0.1.1"
 description = "Omini plugin for Horaco and compatible managed switches"
 license = "MIT"
 requires-python = ">=3.10"
