@@ -7,10 +7,12 @@ timeout_s: 90
 description: >-
   Horaco HC-SWTGW218AS and other managed switches with the same web interface
   (keepLink, Sodola and similar Realtek-based OEM models): ports with link
-  speed, counters, MAC table, model, firmware and uptime. Read-only: it only
-  signs in and reads pages.
+  speed, counters, MAC table, model, firmware and uptime, and enables or
+  disables ports (applied, checked, then saved on the switch).
 author: Omini
 homepage: https://github.com/riccardoalv/omini-plugin-horaco
+changes:
+  - port.enabled
 fields:
   - key: host
     type: host

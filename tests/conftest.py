@@ -1,3 +1,4 @@
+import re
 from functools import partial
 from pathlib import Path
 
@@ -37,6 +38,11 @@ class FakeSwitch:
         self.session = True
         self.drop_paging = False  # the switch drops the page navigation form
         self.drop_paging_times = 0  # ... only this many times, then answers
+        # Port configuration: what Port Setting posted, and the Port List state.
+        self.forms: list[dict[str, str]] = []
+        self.disabled: set[int] = set()
+        self.ignore_changes = False  # answers the form but changes nothing
+        self.saved = 0
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(f"{request.method} {page_name(request.url)}")
@@ -61,9 +67,22 @@ class FakeSwitch:
         name = page_name(request.url)
         if form.get("cmd") == "goto":
             name += f"_pageidx-{form['pageidx']}"
+        if request.url.path == "/port.cgi" and form.get("cmd") == "port":
+            self.forms.append(form)
+            if not self.ignore_changes:
+                for key in form:
+                    if re.fullmatch(r"port\d+", key):
+                        n = int(key[4:]) + 1
+                        (self.disabled.add if form["state"] == "0" else self.disabled.discard)(n)
+        if request.url.path == "/save.cgi" and form.get("cmd") == "save":
+            self.saved += 1
         body = self.pages.get(name)
         if body is None:
             return httpx.Response(404, text="Not Found")
+        if name == "port.cgi":
+            for n in self.disabled:
+                row = f"<td>Port {n}</td>"
+                body = body.replace(row + "<td>Enable</td>", row + "<td>Disable</td>")
         return httpx.Response(200, text=body)
 
 

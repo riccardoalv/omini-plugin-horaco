@@ -323,3 +323,84 @@ def mac_per_page(html: str) -> str | None:
     sel = soup.find("select", attrs={"name": "perpage"})
     opt = sel and (sel.find("option", selected=True) or sel.find("option"))
     return str(opt.get("value")) if opt else None
+
+
+# --- /port.cgi: port configuration ------------------------------------------------
+
+
+@dataclass
+class PortConfig:
+    """A port's configuration as the Port List shows it (the texts of its
+    "Config Attribute" columns)."""
+
+    number: int
+    enabled: bool | None
+    duplex: str
+    speed: str
+    flow: str
+
+
+def parse_port_config(html: str) -> dict[int, PortConfig]:
+    """The Port List: Port | State | Duplex (config, actual) | Speed (config,
+    actual) | Flow Control (config, actual)."""
+    out: dict[int, PortConfig] = {}
+    for table in tables(html):
+        for r in table:
+            n = port_number(r[0]) if r and r[0].lower().startswith("port ") else None
+            if n is None or len(r) < 8:
+                continue
+            state = r[1].lower()
+            enabled = (
+                True
+                if state.startswith("enable")
+                else False
+                if state.startswith("disable")
+                else None
+            )
+            out[n] = PortConfig(number=n, enabled=enabled, duplex=r[2], speed=r[4], flow=r[6])
+        if out:
+            break
+    return out
+
+
+@dataclass
+class PortForm:
+    """The form that configures a port: its checkbox, its hidden fields and,
+    per select, the option value of each text ("Disable" → "0")."""
+
+    checkbox: str
+    hidden: dict[str, str]
+    options: dict[str, dict[str, str]]
+
+
+def option_text(option) -> str:
+    """An option's own text: the firmware leaves <option> unclosed, so the next
+    options nest inside it."""
+    return " ".join(next(iter(option.strings), "").split()).lower()
+
+
+def parse_port_forms(html: str) -> dict[int, PortForm]:
+    """The Port Setting forms (one for the RJ45 ports, one for the SFP+ port),
+    by port number: a port is picked with its checkbox, labelled "Port N"."""
+    out: dict[int, PortForm] = {}
+    soup = BeautifulSoup(html or "", "html.parser")
+    for form in soup.find_all("form"):
+        if "port.cgi" not in (form.get("action") or ""):
+            continue
+        options = {
+            s.get("name"): {option_text(o): o.get("value") for o in s.find_all("option")}
+            for s in form.find_all("select")
+            if s.get("name")
+        }
+        hidden = {
+            i.get("name"): i.get("value", "")
+            for i in form.find_all("input", type="hidden")
+            if i.get("name")
+        }
+        for box in form.find_all("input", type="checkbox"):
+            label = form.find("label", attrs={"for": box.get("id")})
+            text = label.get_text() if label else ""
+            n = port_number(text) if "port" in text.lower() else None
+            if n is not None and box.get("name"):
+                out[n] = PortForm(checkbox=box["name"], hidden=hidden, options=options)
+    return out

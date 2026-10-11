@@ -11,8 +11,13 @@
 | Port counters (`/port.cgi?page=stats`) | Errors (packets; these models count no bytes) |
 | Front panel (`/panel.cgi`) | RJ45 or SFP per port |
 | MAC table (`/mac.cgi?page=fwd_tbl`) | Which device is on which port |
+| Port settings (`/port.cgi`) | Whether each port is enabled |
 
-**Read-only:** the plugin signs in (the same form as the login page) and reads pages. It never changes a setting, reboots or saves anything on the switch.
+## What it changes
+
+**Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again to check the switch took it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, so a reboot undoes it.
+
+Collecting only reads: the plugin signs in (the same form as the login page), reads pages and turns the pages of the MAC table (`cmd=goto`). It never reboots the switch or changes anything else.
 
 ## Install
 

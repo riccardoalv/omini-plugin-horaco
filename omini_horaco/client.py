@@ -6,8 +6,9 @@ requests go one at a time, with a short pause between them, and are retried.
 
 Signing in mirrors the login page: the browser sends MD5(username + password)
 as the form's ``Response`` field and keeps it in the ``admin`` cookie, which is
-what authenticates every later page. Only pages are read: nothing is posted
-besides the login form and page navigation of the MAC table.
+what authenticates every later page. Collecting only reads pages: nothing is
+posted besides the login form and page navigation of the MAC table; a change
+(``submit``) posts the form of its page, then the page is read again.
 """
 
 from __future__ import annotations
@@ -146,6 +147,24 @@ class Client:
             if not signed_out(html):
                 self._keep(path + (f"&pageidx={form['pageidx']}" if form else ""), html)
                 return html
+            if again:
+                log.info("session expired, signing in again")
+                self.login()
+        raise Rejected("the switch rejected the username or password")
+
+    def submit(self, path: str, form: dict[str, str]) -> None:
+        """Posts a configuration form (a change): only ``apply`` calls it, for
+        the changes the manifest declares. Whether it took effect is checked
+        by reading the page again, never assumed from the answer."""
+        if not self.logged_in:
+            self.login()
+        for again in (True, False):
+            time.sleep(self.delay_s * 2)  # the switch drops a form posted right after a page
+            r = self._request("POST", path, data=form, headers={"Referer": self.base + path})
+            if r.status_code >= 400:
+                raise PluginError(f"the switch answered {r.status_code} for {path}")
+            if not signed_out(r.text):
+                return
             if again:
                 log.info("session expired, signing in again")
                 self.login()
