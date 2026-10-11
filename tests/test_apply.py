@@ -79,3 +79,63 @@ def test_port_forms_follow_their_labels():
     assert forms[9].options["speed"]["10g"] == "4"
     assert "10g" not in forms[1].options["speed"]
     assert forms[1].options["state"] == {"enable": "1", "disable": "0"}
+
+
+def vlans_of(devices, port):
+    return next(i.vlans for i in devices[0].interfaces if i.name == port)
+
+
+def test_reads_the_vlans(switch, cfg):
+    [sw] = collect(cfg)
+    assert [(v.id, v.name) for v in sw.vlans] == [(1, None), (10, "Office"), (20, "Guests")]
+    p1, p9 = vlans_of([sw], "Port 1"), vlans_of([sw], "Port 9")
+    assert p1.model_dump(exclude_none=True) == {"untagged": 1}  # access
+    assert p9.model_dump() == {"untagged": 1, "tagged": [10, 20]}  # trunk: native 1
+
+
+def test_puts_a_port_in_a_vlan(switch, cfg):
+    devices = apply(cfg, change("Port 5", {"untagged": 20}, "port.vlans"))
+    assert switch.forms[-1] == {
+        "port4": "on",
+        "vlan_type": "0",
+        "accept_type": "0",
+        "vlan_access": "20",
+    }
+    assert switch.saved == 1
+    assert vlans_of(devices, "Port 5").untagged == 20
+
+
+def test_makes_a_port_a_trunk(switch, cfg):
+    devices = apply(cfg, change("Port 3", {"untagged": 1, "tagged": [20]}, "port.vlans"))
+    form = switch.forms[-1]
+    assert (form["vlan_type"], form["vlan_native"], form["VLAN1"], form["VLAN20"]) == (
+        "1",
+        "1",
+        "on",
+        "on",
+    )
+    assert "VLAN10" not in form
+    assert vlans_of(devices, "Port 3").model_dump() == {"untagged": 1, "tagged": [20]}
+
+
+def test_port_vlans_refusals(switch, cfg):
+    with pytest.raises(PluginError, match="native VLAN"):
+        apply(cfg, change("Port 3", {"tagged": [10, 20]}, "port.vlans"))
+    with pytest.raises(PluginError, match="no VLAN 30"):
+        apply(cfg, change("Port 3", {"untagged": 30}, "port.vlans"))
+    switch.ignore_changes = True
+    with pytest.raises(PluginError, match="did not apply"):
+        apply(cfg, change("Port 3", {"untagged": 10}, "port.vlans"))
+    assert switch.saved == 0
+
+
+def test_creates_and_renames_vlans(switch, cfg):
+    sw = apply(cfg, change(None, {"id": 30, "name": "Cameras of the warehouse"}, "vlan.set"))[0]
+    assert switch.forms[-1] == {"vid": "30", "name": "Cameras of the"}  # 14 characters at most
+    assert (30, "Cameras of the") in [(v.id, v.name) for v in sw.vlans]
+    sw = apply(cfg, change(None, {"id": 10, "name": "Staff"}, "vlan.set"))[0]
+    assert (10, "Staff") in [(v.id, v.name) for v in sw.vlans]
+    assert switch.saved == 2
+    before = len(switch.forms)
+    apply(cfg, change(None, {"id": 10, "name": "Staff"}, "vlan.set"))
+    assert len(switch.forms) == before  # already so

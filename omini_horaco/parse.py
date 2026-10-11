@@ -379,13 +379,14 @@ def option_text(option) -> str:
     return " ".join(next(iter(option.strings), "").split()).lower()
 
 
-def parse_port_forms(html: str) -> dict[int, PortForm]:
-    """The Port Setting forms (one for the RJ45 ports, one for the SFP+ port),
-    by port number: a port is picked with its checkbox, labelled "Port N"."""
+def parse_port_forms(html: str, action: str = "port.cgi") -> dict[int, PortForm]:
+    """The forms that pick ports (Port Setting: one for the RJ45 ports, one for
+    the SFP+ port; 802.1Q VLAN Setting), by port number: a port is picked with
+    its checkbox, labelled "Port N"."""
     out: dict[int, PortForm] = {}
     soup = BeautifulSoup(html or "", "html.parser")
     for form in soup.find_all("form"):
-        if "port.cgi" not in (form.get("action") or ""):
+        if action not in (form.get("action") or ""):
             continue
         options = {
             s.get("name"): {option_text(o): o.get("value") for o in s.find_all("option")}
@@ -403,4 +404,75 @@ def parse_port_forms(html: str) -> dict[int, PortForm]:
             n = port_number(text) if "port" in text.lower() else None
             if n is not None and box.get("name"):
                 out[n] = PortForm(checkbox=box["name"], hidden=hidden, options=options)
+    return out
+
+
+# --- /vlan.cgi: 802.1Q VLANs ------------------------------------------------------
+
+
+def vlans_enabled(html: str) -> bool | None:
+    """VLAN Manage (the switch-wide 802.1Q switch), when the page says."""
+    box = BeautifulSoup(html or "", "html.parser").find("input", attrs={"name": "enable_vlan"})
+    return None if box is None else box.has_attr("checked")
+
+
+def parse_vlans(html: str) -> list[tuple[int, str]]:
+    """The VLANs of the switch (Add VLAN's list): (id, name)."""
+    out: list[tuple[int, str]] = []
+    for table in tables(html):
+        if not table:
+            continue
+        header = table[0]
+        i_id, i_name = header_index(header, "vlan id"), header_index(header, "vlan name")
+        if i_id is None:
+            continue
+        for r in table[1:]:
+            if len(r) > i_id and r[i_id].isdigit():
+                name = r[i_name] if i_name is not None and i_name < len(r) else ""
+                out.append((int(r[i_id]), name))
+        if out:
+            break
+    return out
+
+
+@dataclass
+class PortVlanRow:
+    """A port's row of the 802.1Q VLAN Setting list."""
+
+    number: int
+    mode: str  # "access", "trunk" or "hybrid"
+    access: int | None
+    native: int | None
+    trunk: list[int]
+
+
+def vlan_ids(text: str) -> list[int]:
+    """ "1,10,20" or "1-4094" (with spaces or zero-width spaces) → ids."""
+    out: list[int] = []
+    for part in re.split(r"[,\s​]+", text or ""):
+        if m := re.fullmatch(r"(\d+)-(\d+)", part):
+            out.extend(range(int(m.group(1)), int(m.group(2)) + 1))
+        elif part.isdigit():
+            out.append(int(part))
+    return sorted(set(out))
+
+
+def parse_port_vlans(html: str) -> dict[int, PortVlanRow]:
+    """802.1Q VLAN Setting's list: Port | Port vlan type | Access VLAN |
+    Native VLAN | Trunk vlan."""
+    out: dict[int, PortVlanRow] = {}
+    for table in tables(html):
+        if not table or header_index(table[0], "vlan type") is None:
+            continue
+        for r in table[1:]:
+            n = port_number(r[0]) if r and r[0].lower().startswith("port ") else None
+            if n is None or len(r) < 5:
+                continue
+            mode = r[1].strip().lower()
+            num = lambda s: int(s) if s.strip().isdigit() else None  # noqa: E731
+            out[n] = PortVlanRow(
+                number=n, mode=mode, access=num(r[2]), native=num(r[3]), trunk=vlan_ids(r[4])
+            )
+        if out:
+            break
     return out

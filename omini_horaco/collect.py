@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from omini_sdk import Change, Config, Device, FdbEntry, Interface, PluginError, log
+from omini_sdk import Change, Config, Device, FdbEntry, Interface, PluginError, PortVlans, Vlan, log
 
 from omini_horaco import parse
 from omini_horaco.client import Client, Rejected, Unanswered
@@ -15,6 +15,10 @@ PANEL = "/panel.cgi"
 MACS = "/mac.cgi?page=fwd_tbl"
 PORTS = "/port.cgi"
 SAVE = "/save.cgi"
+VLANS = "/vlan.cgi?page=static"
+PORT_VLANS = "/vlan.cgi?page=port_based"
+# VLAN names on these switches: at most this many characters.
+VLAN_NAME_MAX = 14
 # The MAC table is paged on this firmware; never read more than this many pages.
 MAX_MAC_PAGES = 64
 
@@ -83,7 +87,9 @@ def mac_table(c: Client) -> list[parse.FdbRow]:
 
 
 def interfaces(
-    ports: dict[int, parse.Port], config: dict[int, parse.PortConfig]
+    ports: dict[int, parse.Port],
+    config: dict[int, parse.PortConfig],
+    vlans: dict[int, parse.PortVlanRow] | None = None,
 ) -> list[Interface]:
     out = []
     for n in sorted(ports):
@@ -96,6 +102,7 @@ def interfaces(
                 connector=p.media,
                 up=p.up,
                 enabled=c.enabled if c else None,
+                vlans=port_vlans((vlans or {}).get(n)),
                 speed_mbps=p.speed_mbps,
                 duplex=p.duplex,
                 rx_bytes=p.rx_bytes,
@@ -124,6 +131,10 @@ def collect(cfg: Config) -> list[Device]:
             if n in ports:
                 ports[n].media = kind
         fdb = optional("MAC table", lambda: mac_table(c), [])
+        vlan_list = optional("VLANs", lambda: parse.parse_vlans(c.page(VLANS)), [])
+        port_vlan_rows = optional(
+            "port VLANs", lambda: parse.parse_port_vlans(c.page(PORT_VLANS)), {}
+        )
 
         mac = parse.norm_mac(info.get("mac", ""))
         host = c.base.split("://", 1)[-1]
@@ -140,7 +151,8 @@ def collect(cfg: Config) -> list[Device]:
                 uptime_s=parse.uptime_seconds(info.get("uptime")),
                 macs=[mac] if mac else None,
                 ips=[info["ip"]] if info.get("ip") else [host],
-                interfaces=interfaces(ports, config) or None,
+                interfaces=interfaces(ports, config, port_vlan_rows) or None,
+                vlans=[Vlan(id=i, name=name or None) for i, name in vlan_list] or None,
                 fdb=[
                     FdbEntry(mac=r.mac, port=parse.port_name(r.port), vlan=r.vlan)
                     for r in fdb
@@ -166,10 +178,17 @@ def test(cfg: Config) -> str:
 
 
 def apply(cfg: Config, change: Change) -> list[Device]:
-    """Enables or disables a port (port.enabled): posts the port's form with
-    its other settings as they are, reads the page again to check the switch
-    took it, and only then saves the configuration (unsaved, a reboot undoes
-    it). Returns the switch as read after the change."""
+    """Applies a change: a port enabled or disabled (port.enabled), a port's
+    VLANs (port.vlans), a VLAN created or renamed (vlan.set). Each posts the
+    page's form, reads the page again to check the switch took it, and only
+    then saves the configuration (unsaved, a reboot undoes it). Returns the
+    switch as read after the change."""
+    if change.kind == "port.vlans":
+        set_port_vlans(cfg, change)
+        return collect(cfg)
+    if change.kind == "vlan.set":
+        set_vlan(cfg, change)
+        return collect(cfg)
     if change.kind != "port.enabled" or not isinstance(change.value, bool):
         raise PluginError(f"this plugin cannot apply {change.kind}")
     n = parse.port_number(change.port or "")
@@ -214,3 +233,108 @@ def port_form(form: parse.PortForm, current: parse.PortConfig, enabled: bool) ->
         "flowctrl": value("flowctrl", current.flow),
         **form.hidden,
     }
+
+
+def port_vlans(row: parse.PortVlanRow | None) -> PortVlans | None:
+    """A port's VLANs as Omini knows them: access (untagged), trunk (the native
+    VLAN untagged, the rest tagged). Hybrid ports are left out: Omini does not
+    change them."""
+    if row is None:
+        return None
+    if row.mode == "access" and row.access:
+        return PortVlans(untagged=row.access)
+    if row.mode == "trunk":
+        tagged = [i for i in row.trunk if i != row.native]
+        return PortVlans(untagged=row.native, tagged=tagged or None)
+    return None
+
+
+def need_vlans_on(c: Client) -> None:
+    if parse.vlans_enabled(c.page(VLANS)) is False:
+        raise PluginError(
+            "802.1Q VLANs are off on the switch (VLAN Manage): turn them on there first"
+        )
+
+
+def set_port_vlans(cfg: Config, change: Change) -> None:
+    """Puts a port in VLANs through 802.1Q VLAN Setting: access (one VLAN,
+    untagged) or trunk (a native VLAN and tagged ones; these switches always
+    have a native VLAN on a trunk). The port's accepted frames go back to
+    "All", the switch's default."""
+    want = change.value if isinstance(change.value, dict) else None
+    n = parse.port_number(change.port or "")
+    if want is None or n is None:
+        raise PluginError("port.vlans takes a port and {untagged, tagged}")
+    untagged, tagged = want.get("untagged"), sorted(want.get("tagged") or [])
+    c = client_from(cfg)
+    try:
+        need_vlans_on(c)
+        html = c.page(PORT_VLANS)
+        row = parse.parse_port_vlans(html).get(n)
+        form = parse.parse_port_forms(html, "page=port_based").get(n)
+        if row is None or form is None:
+            raise PluginError(f"the switch's VLAN settings have no {change.port}")
+        if row.mode == "hybrid":
+            raise PluginError(f"{change.port} is a hybrid port: change it on the switch")
+        wanted = PortVlans(untagged=untagged, tagged=tagged or None)
+        if port_vlans(row) == wanted:
+            return
+        fields = vlan_form(form, untagged, tagged)
+        c.submit(PORT_VLANS, fields)
+        after = parse.parse_port_vlans(c.page(PORT_VLANS)).get(n)
+        if port_vlans(after) != wanted:
+            raise PluginError(f"the switch did not apply the VLANs of {change.port} (not saved)")
+        c.submit(SAVE, {"cmd": "save"})
+    finally:
+        c.close()
+
+
+def vlan_form(form: parse.PortForm, untagged: int | None, tagged: list[int]) -> dict[str, str]:
+    """The fields the browser posts for one port's VLANs, in its order."""
+
+    def option(select: str, vid: int) -> str:
+        v = form.options.get(select, {}).get(f"vlan {vid}")
+        if v is None:
+            raise PluginError(f"the switch has no VLAN {vid}: create it first")
+        return v
+
+    if untagged is None:
+        raise PluginError("these switches always have a native VLAN on a trunk: choose one")
+    fields = {form.checkbox: "on"}
+    if not tagged:  # access
+        fields |= {
+            "vlan_type": form.options["vlan_type"]["access"],
+            "accept_type": form.options["accept_type"]["all"],
+            "vlan_access": option("vlan_access", untagged),
+        }
+        return fields
+    fields |= {
+        "vlan_type": form.options["vlan_type"]["trunk"],
+        "accept_type": form.options["accept_type"]["all"],
+        "vlan_access": option("vlan_access", untagged),
+        "vlan_native": option("vlan_native", untagged),
+    }
+    for vid in sorted({untagged, *tagged}):
+        option("vlan_access", vid)  # the switch has it
+        fields[f"VLAN{vid}"] = "on"
+    return fields
+
+
+def set_vlan(cfg: Config, change: Change) -> None:
+    """Creates a VLAN, or renames it, through Add VLAN (names are cut at
+    VLAN_NAME_MAX characters, the switch's limit)."""
+    value = change.value if isinstance(change.value, dict) else {}
+    vid, name = value.get("id"), (value.get("name") or "")[:VLAN_NAME_MAX]
+    if not isinstance(vid, int) or not 1 <= vid <= 4094:
+        raise PluginError("vlan.set takes {id, name}")
+    c = client_from(cfg)
+    try:
+        need_vlans_on(c)
+        if dict(parse.parse_vlans(c.page(VLANS))).get(vid) == name:
+            return
+        c.submit(VLANS, {"vid": str(vid), "name": name})
+        if dict(parse.parse_vlans(c.page(VLANS))).get(vid) != name:
+            raise PluginError(f"the switch did not take VLAN {vid} {name!r} (not saved)")
+        c.submit(SAVE, {"cmd": "save"})
+    finally:
+        c.close()

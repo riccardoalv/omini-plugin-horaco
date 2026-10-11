@@ -12,10 +12,15 @@
 | Front panel (`/panel.cgi`) | RJ45 or SFP per port |
 | MAC table (`/mac.cgi?page=fwd_tbl`) | Which device is on which port |
 | Port settings (`/port.cgi`) | Whether each port is enabled |
+| 802.1Q VLANs (`/vlan.cgi?page=static`, `/vlan.cgi?page=port_based`) | The switch's VLANs, each port's (access, or trunk with its native VLAN) |
 
 ## What it changes
 
 **Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again to check the switch took it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, so a reboot undoes it.
+
+**Create or rename a VLAN** (`vlan.set`): **Add VLAN** (`/vlan.cgi?page=static`, fields `vid` and `name`; names are cut at 14 characters, the switch's limit), read back, then saved. Deleting a VLAN is not supported yet: delete it on the switch.
+
+**Set a port's VLANs** (`port.vlans`): **802.1Q VLAN Setting** (`/vlan.cgi?page=port_based`) for that port alone: access (one VLAN) or trunk (a native VLAN, which these switches always have, and the tagged VLANs); the port's accepted frames go back to "All", the switch's default. Hybrid ports are left alone. Read back, then saved. VLAN Manage must be on.
 
 Collecting only reads: the plugin signs in (the same form as the login page), reads pages and turns the pages of the MAC table (`cmd=goto`). It never reboots the switch or changes anything else.
 
