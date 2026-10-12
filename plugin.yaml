@@ -1,6 +1,6 @@
 id: horaco
 name: Horaco switch
-version: 0.2.0
+version: 0.3.0
 protocol: 1
 entrypoint: main.py
 timeout_s: 90
@@ -9,9 +9,10 @@ description: >-
   (keepLink, Sodola and similar Realtek-based OEM models): ports with link
   speed, counters, MAC table, 802.1Q VLANs, model, firmware and uptime; enables
   and disables ports, sets their VLANs and creates VLANs (applied, checked,
-  then saved on the switch).
+  then saved on the switch); backs up its settings.
 author: Omini
 homepage: https://github.com/riccardoalv/omini-plugin-horaco
+backup: true
 changes:
   - port.enabled
   - port.vlans

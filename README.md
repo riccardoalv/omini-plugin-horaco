@@ -13,6 +13,7 @@
 | MAC table (`/mac.cgi?page=fwd_tbl`) | Which device is on which port |
 | Port settings (`/port.cgi`) | Whether each port is enabled |
 | 802.1Q VLANs (`/vlan.cgi?page=static`, `/vlan.cgi?page=port_based`) | The switch's VLANs, each port's (access, or trunk with its native VLAN) |
+| Netmask (`/info.cgi`) | Configuration backups (below) |
 
 ## What it changes
 
@@ -23,6 +24,28 @@
 **Set a port's VLANs** (`port.vlans`): **802.1Q VLAN Setting** (`/vlan.cgi?page=port_based`) for that port alone: access (one VLAN) or trunk (a native VLAN, which these switches always have, and the tagged VLANs); the port's accepted frames go back to "All", the switch's default. Hybrid ports are left alone. Read back, then saved. VLAN Manage must be on.
 
 Collecting only reads: the plugin signs in (the same form as the login page), reads pages and turns the pages of the MAC table (`cmd=goto`). It never reboots the switch or changes anything else.
+
+## Configuration backups
+
+Omini keeps a history of the switch's configuration (once a day and after each change it makes). No configuration file download has been seen on this firmware, so the backup is the switch's settings as sorted JSON, from pages collect already reads (GET only):
+
+- **system**: device name, IP address and netmask (`/info.cgi`);
+- **ports**: each port's state, duplex, speed and flow control as configured (`/port.cgi`);
+- **VLANs**: VLAN Manage on or off, the VLANs and their names (`/vlan.cgi?page=static`), and each port's mode, access, native and trunk VLANs (`/vlan.cgi?page=port_based`).
+
+No status (link, uptime, firmware version, counters, MAC table) and no password (the pages never show it): two backups differ only when the configuration changed. If one of these pages does not answer, no backup is made (a partial one would look like a change). It needs nothing beyond the login collect uses. Omini never restores it.
+
+## Not read yet: spanning tree and link aggregation
+
+Omini can show each port's STP state and role and the ports of a LAG, but no page of these switches has been captured for them, so the plugin does not read them (it never guesses page names on a switch this fragile). To add them, these pages of a real switch are needed (saved from the browser while signed in):
+
+- `/menu.cgi` (the left menu: the names of the spanning tree / loop prevention and trunk / link aggregation pages on this firmware);
+- the spanning tree page(s): global settings (bridge priority, root bridge) and the per-port table (state, role), with STP on;
+- the link aggregation (trunk) page with at least one group configured, and the Port Setting and VLAN pages while that group exists.
+
+## Not verified on hardware
+
+- Backups use pages captured on a real unit (firmware V200.2.4); the info grid's `Netmask` label is assumed to be the same on other firmware versions (`Subnet Mask` is read too).
 
 ## Install
 

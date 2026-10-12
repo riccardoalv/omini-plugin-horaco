@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 from omini_sdk import Change, Config, Device, FdbEntry, Interface, PluginError, PortVlans, Vlan, log
@@ -114,6 +115,11 @@ def interfaces(
     return out
 
 
+def device_key(info: dict[str, str], c: Client) -> str:
+    """The switch's MAC, else the address Omini reaches it at."""
+    return parse.norm_mac(info.get("mac", "")) or c.base.split("://", 1)[-1]
+
+
 def collect(cfg: Config) -> list[Device]:
     c = client_from(cfg)
     try:
@@ -141,7 +147,7 @@ def collect(cfg: Config) -> list[Device]:
         model = info.get("model")
         return [
             Device(
-                key=mac or host,
+                key=device_key(info, c),
                 name=info.get("name") or model or host,
                 host=host,
                 role="switch",
@@ -336,5 +342,58 @@ def set_vlan(cfg: Config, change: Change) -> None:
         if dict(parse.parse_vlans(c.page(VLANS))).get(vid) != name:
             raise PluginError(f"the switch did not take VLAN {vid} {name!r} (not saved)")
         c.submit(SAVE, {"cmd": "save"})
+    finally:
+        c.close()
+
+
+# --- backup ----------------------------------------------------------------------
+
+
+def backup(cfg: Config) -> list[dict]:
+    """The switch's settings as sorted JSON, from the pages collect reads: its
+    name and address, each port's settings, the 802.1Q VLANs and each port's
+    VLANs. No status, counters, uptime or MAC table, and no password (the
+    pages never show it), so that two backups differ only when the
+    configuration changed. Every page must answer: a partial backup would
+    look like a change."""
+    c = client_from(cfg)
+    try:
+        info = parse.parse_info(c.page(INFO))
+        if not info:
+            raise PluginError("signed in, but this does not look like a supported switch")
+        ports = parse.parse_port_config(c.page(PORTS))
+        vlan_html = c.page(VLANS)
+        port_vlans = parse.parse_port_vlans(c.page(PORT_VLANS))
+        settings = {
+            "system": {k: info[k] for k in ("name", "ip", "netmask") if info.get(k)},
+            "ports": {
+                parse.port_name(n): {
+                    "enabled": p.enabled,
+                    "duplex": p.duplex,
+                    "speed": p.speed,
+                    "flow_control": p.flow,
+                }
+                for n, p in ports.items()
+            },
+            "vlan_manage": parse.vlans_enabled(vlan_html),
+            "vlans": [{"id": i, "name": name} for i, name in sorted(parse.parse_vlans(vlan_html))],
+            "port_vlans": {
+                parse.port_name(n): {
+                    "mode": r.mode,
+                    "access": r.access,
+                    "native": r.native,
+                    "trunk": r.trunk,
+                }
+                for n, r in port_vlans.items()
+            },
+        }
+        return [
+            {
+                "device": device_key(info, c),
+                "format": "json",
+                "content": json.dumps(settings, sort_keys=True, indent=2, ensure_ascii=False)
+                + "\n",
+            }
+        ]
     finally:
         c.close()

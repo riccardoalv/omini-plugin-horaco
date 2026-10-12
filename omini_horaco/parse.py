@@ -66,6 +66,8 @@ INFO_KEYS = {
     "model": "model",
     "mac address": "mac",
     "ip address": "ip",
+    "netmask": "netmask",
+    "subnet mask": "netmask",
     "firmware version": "firmware",
     "firmware": "firmware",
     "hardware version": "hardware",
