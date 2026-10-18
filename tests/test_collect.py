@@ -162,3 +162,21 @@ def test_a_switch_that_never_accepts_a_connection(switch, cfg):
     collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
     with pytest.raises(PluginError, match=r"cannot connect to http://192\.168\.1\.96"):
         collect(cfg)
+
+
+def test_optional_pages_failing_are_logged(cfg, caplog):
+    from omini_horaco.collect import optional
+
+    def answered_500():
+        raise PluginError("the switch answered 500 for /panel.cgi")
+
+    def parser_bug():
+        raise IndexError("list index out of range")
+
+    with caplog.at_level("DEBUG", logger="omini.plugin"):
+        assert optional("front panel", answered_500, {}) == {}
+        assert optional("counters", parser_bug, None) is None
+    expected, bug = caplog.records
+    # An error the page answered: one line. A parser bug: its traceback.
+    assert (expected.levelname, expected.exc_info) == ("WARNING", None)
+    assert bug.levelname == "WARNING" and bug.exc_info[0] is IndexError

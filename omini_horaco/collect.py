@@ -39,11 +39,13 @@ def optional(what: str, fn, default):
         return fn()
     except Rejected:
         raise
-    except Unanswered as e:
+    except PluginError as e:  # the page did not answer, or answered an error
         log.warning("skipped %s: %s", what, e)
         return default
     except Exception:
-        log.exception("could not read %s", what)
+        # Not expected: most likely a page this parser does not understand.
+        # Kept with its traceback so it can be fixed, without failing the rest.
+        log.warning("could not parse %s", what, exc_info=True)
         return default
 
 
