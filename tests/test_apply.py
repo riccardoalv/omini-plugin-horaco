@@ -139,3 +139,10 @@ def test_creates_and_renames_vlans(switch, cfg):
     before = len(switch.forms)
     apply(cfg, change(None, {"id": 10, "name": "Staff"}, "vlan.set"))
     assert len(switch.forms) == before  # already so
+
+
+def test_the_native_vlan_listed_as_tagged_is_dropped(switch, cfg):
+    change_ = change("Port 3", {"untagged": 1, "tagged": [1, 20]}, "port.vlans")
+    devices = apply(cfg, change_)
+    assert switch.saved == 1
+    assert vlans_of(devices, "Port 3").model_dump() == {"untagged": 1, "tagged": [20]}

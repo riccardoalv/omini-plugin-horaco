@@ -271,7 +271,10 @@ def set_port_vlans(cfg: Config, change: Change) -> None:
     n = parse.port_number(change.port or "")
     if want is None or n is None:
         raise PluginError("port.vlans takes a port and {untagged, tagged}")
-    untagged, tagged = want.get("untagged"), sorted(want.get("tagged") or [])
+    untagged = want.get("untagged")
+    # The native VLAN is untagged on a trunk: listed as tagged too, it is
+    # dropped there, as port_vlans() reads it back.
+    tagged = sorted(set(want.get("tagged") or []) - {untagged})
     c = client_from(cfg)
     try:
         need_vlans_on(c)
