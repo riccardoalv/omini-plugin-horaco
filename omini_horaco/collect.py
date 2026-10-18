@@ -138,8 +138,9 @@ def collect(cfg: Config) -> list[Device]:
                 ports[n].media = kind
         fdb = optional("MAC table", lambda: mac_table(c), [])
         vlan_list = optional("VLANs", lambda: parse.parse_vlans(c.page(VLANS)), [])
-        port_vlan_rows = optional(
-            "port VLANs", lambda: parse.parse_port_vlans(c.page(PORT_VLANS)), {}
+        port_vlan_rows = existing_only(
+            optional("port VLANs", lambda: parse.parse_port_vlans(c.page(PORT_VLANS)), {}),
+            vlan_list,
         )
 
         mac = parse.norm_mac(info.get("mac", ""))
@@ -275,11 +276,27 @@ def port_vlans(row: parse.PortVlanRow | None) -> PortVlans | None:
     return None
 
 
-def need_vlans_on(c: Client) -> None:
-    if parse.vlans_enabled(c.page(VLANS)) is False:
+def existing_only(
+    rows: dict[int, parse.PortVlanRow], vlan_list: list[tuple[int, str]]
+) -> dict[int, parse.PortVlanRow]:
+    """Keeps in each trunk only the VLANs the switch has: a trunk shown as
+    "1-4094" allows every VLAN, but carries only those that exist. Left as
+    read when the VLAN list is unknown."""
+    ids = {i for i, _ in vlan_list}
+    if ids:
+        for r in rows.values():
+            r.trunk = [i for i in r.trunk if i in ids]
+    return rows
+
+
+def need_vlans_on(c: Client) -> list[tuple[int, str]]:
+    """Refuses when 802.1Q is off; returns the switch's VLANs."""
+    html = c.page(VLANS)
+    if parse.vlans_enabled(html) is False:
         raise PluginError(
             "802.1Q VLANs are off on the switch (VLAN Manage): turn them on there first"
         )
+    return parse.parse_vlans(html)
 
 
 def set_port_vlans(cfg: Config, change: Change) -> None:
@@ -297,9 +314,9 @@ def set_port_vlans(cfg: Config, change: Change) -> None:
     tagged = sorted(set(want.get("tagged") or []) - {untagged})
     c = client_from(cfg)
     try:
-        need_vlans_on(c)
+        vlan_list = need_vlans_on(c)
         html = c.page(PORT_VLANS)
-        row = parse.parse_port_vlans(html).get(n)
+        row = existing_only(parse.parse_port_vlans(html), vlan_list).get(n)
         form = parse.parse_port_forms(html, "page=port_based").get(n)
         if row is None or form is None:
             raise PluginError(f"the switch's VLAN settings have no {change.port}")
@@ -311,7 +328,7 @@ def set_port_vlans(cfg: Config, change: Change) -> None:
         fields = vlan_form(form, untagged, tagged)
         previous = previous_vlan_form(form, row)
         c.submit(PORT_VLANS, fields)
-        after = parse.parse_port_vlans(c.page(PORT_VLANS)).get(n)
+        after = existing_only(parse.parse_port_vlans(c.page(PORT_VLANS)), vlan_list).get(n)
         if port_vlans(after) != wanted:
             undone = restore(c, PORT_VLANS, previous)
             raise PluginError(

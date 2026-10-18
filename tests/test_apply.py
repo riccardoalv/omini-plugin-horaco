@@ -176,3 +176,13 @@ def test_a_rename_not_taken_is_undone(switch, cfg):
     with pytest.raises(PluginError, match=r"\(not saved\)"):
         apply(cfg, change(None, {"id": 30, "name": "New"}, "vlan.set"))  # nothing to undo
     assert switch.saved == 0
+
+
+def test_a_trunk_of_every_vlan_carries_those_that_exist(switch, cfg):
+    switch.pages["vlan.cgi_page-port_based"] = switch.pages["vlan.cgi_page-port_based"].replace(
+        "<td>1,10,20</td>", "<td>1-4094</td>"
+    )
+    [sw] = collect(cfg)
+    assert vlans_of([sw], "Port 9").model_dump() == {"untagged": 1, "tagged": [10, 20]}
+    apply(cfg, change("Port 9", {"untagged": 1, "tagged": [10, 20]}, "port.vlans"))
+    assert switch.forms == []  # already so
