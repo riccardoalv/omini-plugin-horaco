@@ -5,7 +5,18 @@ from __future__ import annotations
 import json
 import time
 
-from omini_sdk import Change, Config, Device, FdbEntry, Interface, PluginError, PortVlans, Vlan, log
+from omini_sdk import (
+    Change,
+    Config,
+    ConfigBackup,
+    Device,
+    FdbEntry,
+    Interface,
+    PluginError,
+    PortVlans,
+    Vlan,
+    log,
+)
 
 from omini_horaco import parse
 from omini_horaco.client import Client, Rejected, Unanswered
@@ -419,7 +430,7 @@ def set_vlan(cfg: Config, change: Change) -> None:
 # --- backup ----------------------------------------------------------------------
 
 
-def backup(cfg: Config) -> list[dict]:
+def backup(cfg: Config) -> list[ConfigBackup]:
     """The switch's settings as sorted JSON, from the pages collect reads: its
     name and address, each port's settings, the 802.1Q VLANs and each port's
     VLANs. No status, counters, uptime or MAC table, and no password (the
@@ -458,12 +469,11 @@ def backup(cfg: Config) -> list[dict]:
             },
         }
         return [
-            {
-                "device": device_key(info, c),
-                "format": "json",
-                "content": json.dumps(settings, sort_keys=True, indent=2, ensure_ascii=False)
-                + "\n",
-            }
+            ConfigBackup(
+                device=device_key(info, c),
+                format="json",
+                content=json.dumps(settings, sort_keys=True, indent=2, ensure_ascii=False) + "\n",
+            )
         ]
     finally:
         c.close()

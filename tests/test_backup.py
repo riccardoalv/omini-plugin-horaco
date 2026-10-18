@@ -2,7 +2,7 @@ import json
 
 import httpx
 import pytest
-from omini_sdk import PluginError
+from omini_sdk import ConfigBackup, PluginError
 
 import omini_horaco.collect as collect_module
 from omini_horaco.collect import backup, collect
@@ -10,13 +10,13 @@ from omini_horaco.collect import backup, collect
 
 def settings(cfg):
     [b] = backup(cfg)
-    assert b["format"] == "json"
-    return b, json.loads(b["content"])
+    assert isinstance(b, ConfigBackup) and b.format == "json"
+    return b, json.loads(b.content)
 
 
 def test_one_backup_keyed_like_the_device(switch, cfg):
     b, s = settings(cfg)
-    assert b["device"] == collect(cfg)[0].key
+    assert b.device == collect(cfg)[0].key
     assert s["system"] == {
         "name": "HC-SWTGW218AS",
         "ip": "192.168.1.96",
@@ -48,7 +48,7 @@ def test_only_reads(switch, cfg):
     backup(cfg)
     assert all(not p.startswith(("/port.cgi", "/vlan.cgi", "/save.cgi")) for p in switch.posts)
     assert not any("mac.cgi" in c or "stats" in c for c in switch.calls)
-    assert "secret" not in backup(cfg)[0]["content"]
+    assert "secret" not in backup(cfg)[0].content
 
 
 def test_backups_are_deterministic(switch, cfg):
@@ -57,10 +57,10 @@ def test_backups_are_deterministic(switch, cfg):
     switch.disabled = {3}
     after = backup(cfg)
     assert after != first
-    assert json.loads(after[0]["content"])["ports"]["Port 3"]["enabled"] is False
+    assert json.loads(after[0].content)["ports"]["Port 3"]["enabled"] is False
     switch.disabled = set()
     switch.vlan_names = {20: "IoT"}  # renamed
-    assert {"id": 20, "name": "IoT"} in json.loads(backup(cfg)[0]["content"])["vlans"]
+    assert {"id": 20, "name": "IoT"} in json.loads(backup(cfg)[0].content)["vlans"]
 
 
 def test_a_page_that_does_not_answer_fails_the_backup(switch, cfg):
