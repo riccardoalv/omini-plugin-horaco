@@ -17,7 +17,7 @@
 
 ## What it changes
 
-**Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again to check the switch took it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, so a reboot undoes it.
+**Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again to check the switch took it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, and the previous settings are posted back at once (a VLAN the switch created anyway cannot be: deleting VLANs is not supported yet).
 
 **Create or rename a VLAN** (`vlan.set`): **Add VLAN** (`/vlan.cgi?page=static`, fields `vid` and `name`; names are cut at 14 characters, the switch's limit), read back, then saved. Deleting a VLAN is not supported yet: delete it on the switch.
 

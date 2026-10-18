@@ -206,16 +206,36 @@ def apply(cfg: Config, change: Change) -> list[Device]:
         if current is None or form is None:
             raise PluginError(f"the switch's port settings have no {change.port}")
         if current.enabled != change.value:
-            c.submit(PORTS, port_form(form, current, change.value))
+            fields = port_form(form, current, change.value)
+            # Built before the change: the port's settings as they were.
+            previous = (
+                port_form(form, current, current.enabled) if current.enabled is not None else None
+            )
+            c.submit(PORTS, fields)
             after = parse.parse_port_config(c.page(PORTS)).get(n)
             if after is None or after.enabled != change.value:
+                undone = restore(c, PORTS, previous)
                 raise PluginError(
-                    f"the switch did not apply the change to {change.port} (not saved)"
+                    f"the switch did not apply the change to {change.port} (not saved{undone})"
                 )
             c.submit(SAVE, {"cmd": "save"})
     finally:
         c.close()
     return collect(cfg)
+
+
+def restore(c: Client, path: str, previous: dict[str, str] | None) -> str:
+    """Posts a page's form back as it was before a change the switch did not
+    show as asked, so its running configuration is not left half changed
+    until a reboot. Returns how it went, for the error message."""
+    if previous is None:
+        return ", could not be undone: check it on the switch"
+    try:
+        c.submit(path, previous)
+    except PluginError as e:
+        log.warning("could not undo the change on %s: %s", path, e)
+        return ", could not be undone: check it on the switch"
+    return ", undone"
 
 
 def port_form(form: parse.PortForm, current: parse.PortConfig, enabled: bool) -> dict[str, str]:
@@ -289,17 +309,37 @@ def set_port_vlans(cfg: Config, change: Change) -> None:
         if port_vlans(row) == wanted:
             return
         fields = vlan_form(form, untagged, tagged)
+        previous = previous_vlan_form(form, row)
         c.submit(PORT_VLANS, fields)
         after = parse.parse_port_vlans(c.page(PORT_VLANS)).get(n)
         if port_vlans(after) != wanted:
-            raise PluginError(f"the switch did not apply the VLANs of {change.port} (not saved)")
+            undone = restore(c, PORT_VLANS, previous)
+            raise PluginError(
+                f"the switch did not apply the VLANs of {change.port} (not saved{undone})"
+            )
         c.submit(SAVE, {"cmd": "save"})
     finally:
         c.close()
 
 
-def vlan_form(form: parse.PortForm, untagged: int | None, tagged: list[int]) -> dict[str, str]:
-    """The fields the browser posts for one port's VLANs, in its order."""
+def previous_vlan_form(form: parse.PortForm, row: parse.PortVlanRow) -> dict[str, str] | None:
+    """The fields that put a port's VLANs back as the row shows them, or None
+    when the row does not say enough (or names a VLAN the form lacks)."""
+    try:
+        if row.mode == "access" and row.access:
+            return vlan_form(form, row.access, [])
+        if row.mode == "trunk" and row.native:
+            return vlan_form(form, row.native, [i for i in row.trunk if i != row.native], True)
+    except PluginError:
+        pass
+    return None
+
+
+def vlan_form(
+    form: parse.PortForm, untagged: int | None, tagged: list[int], trunk: bool = False
+) -> dict[str, str]:
+    """The fields the browser posts for one port's VLANs, in its order: a
+    trunk when there are tagged VLANs (or ``trunk``), else access."""
 
     def option(select: str, vid: int) -> str:
         v = form.options.get(select, {}).get(f"vlan {vid}")
@@ -310,7 +350,7 @@ def vlan_form(form: parse.PortForm, untagged: int | None, tagged: list[int]) -> 
     if untagged is None:
         raise PluginError("these switches always have a native VLAN on a trunk: choose one")
     fields = {form.checkbox: "on"}
-    if not tagged:  # access
+    if not tagged and not trunk:  # access
         fields |= {
             "vlan_type": form.options["vlan_type"]["access"],
             "accept_type": form.options["accept_type"]["all"],
@@ -339,11 +379,19 @@ def set_vlan(cfg: Config, change: Change) -> None:
     c = client_from(cfg)
     try:
         need_vlans_on(c)
-        if dict(parse.parse_vlans(c.page(VLANS))).get(vid) == name:
+        old = dict(parse.parse_vlans(c.page(VLANS))).get(vid)
+        if old == name:
             return
         c.submit(VLANS, {"vid": str(vid), "name": name})
-        if dict(parse.parse_vlans(c.page(VLANS))).get(vid) != name:
-            raise PluginError(f"the switch did not take VLAN {vid} {name!r} (not saved)")
+        after = dict(parse.parse_vlans(c.page(VLANS)))
+        if after.get(vid) != name:
+            # A rename is undone with the old name; a new VLAN the switch
+            # created anyway cannot be (deleting VLANs is not supported yet).
+            if old is not None:
+                undone = restore(c, VLANS, {"vid": str(vid), "name": old})
+            else:
+                undone = restore(c, VLANS, None) if vid in after else ""
+            raise PluginError(f"the switch did not take VLAN {vid} {name!r} (not saved{undone})")
         c.submit(SAVE, {"cmd": "save"})
     finally:
         c.close()

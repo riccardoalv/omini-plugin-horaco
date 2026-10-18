@@ -146,3 +146,33 @@ def test_the_native_vlan_listed_as_tagged_is_dropped(switch, cfg):
     devices = apply(cfg, change_)
     assert switch.saved == 1
     assert vlans_of(devices, "Port 3").model_dump() == {"untagged": 1, "tagged": [20]}
+
+
+def test_a_port_change_not_taken_is_undone(switch, cfg):
+    switch.ignore_changes = True
+    with pytest.raises(PluginError, match="not saved, undone"):
+        apply(cfg, change())
+    # The change, then the port's settings as they were (enabled).
+    assert [f["state"] for f in switch.forms] == ["0", "1"]
+    assert switch.forms[-1]["port4"] == "on" and switch.saved == 0
+
+
+def test_port_vlans_not_taken_are_undone(switch, cfg):
+    switch.ignore_changes = True
+    with pytest.raises(PluginError, match="not saved, undone"):
+        apply(cfg, change("Port 9", {"untagged": 10}, "port.vlans"))
+    # Back to the trunk it was: native 1, VLANs 1, 10 and 20.
+    restored = switch.forms[-1]
+    assert (restored["port8"], restored["vlan_type"], restored["vlan_native"]) == ("on", "1", "1")
+    assert {k for k in restored if k.startswith("VLAN")} == {"VLAN1", "VLAN10", "VLAN20"}
+    assert switch.saved == 0
+
+
+def test_a_rename_not_taken_is_undone(switch, cfg):
+    switch.ignore_changes = True
+    with pytest.raises(PluginError, match="not saved, undone"):
+        apply(cfg, change(None, {"id": 10, "name": "Staff"}, "vlan.set"))
+    assert switch.forms[-1] == {"vid": "10", "name": "Office"}
+    with pytest.raises(PluginError, match=r"\(not saved\)"):
+        apply(cfg, change(None, {"id": 30, "name": "New"}, "vlan.set"))  # nothing to undo
+    assert switch.saved == 0
