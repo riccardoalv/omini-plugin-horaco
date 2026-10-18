@@ -98,10 +98,12 @@ class Client:
                 time.sleep(self.delay_s * (1 + 3 * attempt))
             try:
                 return self.http.request(method, path, **kw)
-            except httpx.ConnectError as e:
-                raise PluginError(f"cannot connect to {self.base}: {e}") from e
             except httpx.HTTPError as e:
+                # Refused connections too: the switch refuses every one for a
+                # few seconds at times, then answers again.
                 last = e
+        if isinstance(last, httpx.ConnectError):
+            raise Unanswered(f"cannot connect to {self.base}: {last}")
         raise Unanswered(f"{self.base} did not answer {path}: {last}")
 
     def login(self) -> None:

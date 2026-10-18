@@ -1,6 +1,8 @@
+import httpx
 import pytest
 from omini_sdk import PluginError
 
+import omini_horaco.collect as collect_module
 from omini_horaco import parse
 from omini_horaco.collect import collect
 from omini_horaco.collect import test as connection_test
@@ -137,3 +139,26 @@ def test_unknown_layout_is_left_out():
         2: "sfp",
     }
     assert parse.parse_mac_table("<p>nothing</p>") == []
+
+
+def test_refused_connections_are_retried(switch, cfg):
+    inner, refused = switch.handler, {"left": 2}
+
+    def handler(request):
+        if refused["left"] > 0:  # the switch refuses connections for a moment
+            refused["left"] -= 1
+            raise httpx.ConnectError("Connection refused")
+        return inner(request)
+
+    collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
+    [sw] = collect(cfg)
+    assert sw.model == "HC-SWTGW218AS"
+
+
+def test_a_switch_that_never_accepts_a_connection(switch, cfg):
+    def handler(request):
+        raise httpx.ConnectError("Connection refused")
+
+    collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
+    with pytest.raises(PluginError, match=r"cannot connect to http://192\.168\.1\.96"):
+        collect(cfg)
