@@ -73,7 +73,7 @@ def test_a_page_that_does_not_answer_fails_the_backup(switch, cfg):
 
     collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
     # A backup without the VLANs would look like a change: none is made.
-    with pytest.raises(PluginError, match="did not answer"):
+    with pytest.raises(PluginError, match=r"http://192\.168\.1\.96 failed: Server disconnected"):
         backup(cfg)
 
 

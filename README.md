@@ -17,7 +17,7 @@
 
 ## What it changes
 
-**Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again to check the switch took it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, and the previous settings are posted back at once (a VLAN the switch created anyway cannot be: deleting VLANs is not supported yet).
+**Enable or disable a port** (`port.enabled`), from the port's card in Omini. The plugin posts the port's form of **Port Setting** (`/port.cgi`, `cmd=port`) with its other settings (duplex, speed, flow control) as they are, reads the page again (every 2 seconds, up to 30) until the switch shows it, and only then posts **Save Configuration** (`/save.cgi`, `cmd=save`). A change the switch did not take is never saved, and the previous settings are posted back: the error ends "(undone)", or "(could not be undone: check it on the switch)" when that fails too (a VLAN the switch created anyway cannot be: deleting VLANs is not supported yet).
 
 **Create or rename a VLAN** (`vlan.set`): **Add VLAN** (`/vlan.cgi?page=static`, fields `vid` and `name`; names are cut at 14 characters, the switch's limit), read back, then saved. Deleting a VLAN is not supported yet: delete it on the switch.
 
@@ -47,13 +47,26 @@ Omini can show each port's STP state and role and the ports of a LAG, but no pag
 
 - Backups use pages captured on a real unit (firmware V200.2.4); the info grid's `Netmask` label is assumed to be the same on other firmware versions (`Subnet Mask` is read too).
 
+## Requirements
+
+- **Omini 1.7 or later** (the plugin uses the SDK's HTTP client, optional reads and change checks).
+- The switch's web interface over plain HTTP (these switches have no HTTPS): an address without a scheme gets `http://`.
+
+## Form fields
+
+| Field | Meaning |
+|---|---|
+| Address | The switch's IP address (its web interface), e.g. `192.168.1.96` |
+| Username / Password | The account of the switch's web interface (`admin` by default) |
+| Timeout (Advanced) | Seconds to wait for each answer of the switch (15 by default, was 10) |
+
 ## Install
 
 In Omini: **Integrations → Add → Plugin store → +** and paste `https://github.com/riccardoalv/omini-plugin-horaco`. Then add the integration with the switch's address, username (`admin` by default) and password.
 
 ## Notes
 
-- The switch's web server is slow and drops connections when it gets several requests at once: the plugin reads one page at a time, with a short pause, and retries. A collection takes a few seconds; once a minute is plenty.
+- The switch's web server is slow and drops connections when it gets several requests at once: the plugin reads one page at a time, with a short pause. A refused connection is tried again (three times, after 1.2, 2.4 and 4.8 seconds), and so is a page read that was dropped or timed out; a form that was dropped (a change, the login, a page of the MAC table) is not posted again at once, since the switch may have taken it. A page of the MAC table that still does not answer is tried once more after a pause of a few seconds, then the table stops at the pages read. A collection takes a few seconds; once a minute is plenty.
 - Signing in from Omini may sign you out of the switch's web interface in your browser (the firmware keeps one session).
 - The last pages read are kept in the plugin's state folder (`<data>/plugins/horaco/state/<integration>/pages`). If your model is not read correctly, attaching them to an issue helps (remove the MACs first if you prefer).
 

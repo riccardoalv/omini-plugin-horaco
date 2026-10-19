@@ -1,36 +1,46 @@
-"""HTTP client for the switch's web interface.
+"""HTTP client for the switch's web interface, on the SDK's HTTP client.
 
 The firmware's embedded web server is fragile: it drops connections when
 requests arrive back to back and sometimes closes one without an answer. So
-requests go one at a time, with a short pause between them, and are retried.
+requests go one at a time, with a short pause between them; the SDK's client
+asks again after a refused connection (any request), a dropped answer or a
+timeout (reads only: a form posted is never sent twice).
 
 Signing in mirrors the login page: the browser sends MD5(username + password)
 as the form's ``Response`` field and keeps it in the ``admin`` cookie, which is
 what authenticates every later page. Collecting only reads pages: nothing is
 posted besides the login form and page navigation of the MAC table; a change
 (``submit``) posts the form of its page, then the page is read again.
+
+The switch speaks plain HTTP only (no TLS): an address without a scheme gets
+``http://``.
 """
 
 from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
-from omini_sdk import PluginError, log
+from omini_sdk import log
+from omini_sdk.http import Client as HttpClient
+from omini_sdk.http import Unauthorized, Unavailable
 
-# Pause between requests and attempts per page (see the module docstring).
+# Pause between requests, and how many times a request is asked again (see
+# the module docstring); the pauses between tries grow from RETRY_PAUSE_S.
 DELAY_S = 0.4
-ATTEMPTS = 4
+RETRIES = 3
+RETRY_PAUSE_S = 1.2
 
 
-class Rejected(PluginError):
+class Rejected(Unauthorized):
     """Wrong username or password: never retried, never hidden."""
 
 
-class Unanswered(PluginError):
-    """The switch dropped the connection on every attempt."""
+# The switch did not answer (refused or dropped every try): the SDK's error.
+Unanswered = Unavailable
 
 
 def credential(username: str, password: str) -> str:
@@ -48,38 +58,39 @@ def signed_out(html: str) -> bool:
     )
 
 
-class Client:
+class Client(HttpClient):
     def __init__(
         self,
         host: str,
         username: str,
         password: str,
-        timeout: float = 10,
+        timeout: float = 15,
         pages_dir: Path | None = None,
         transport: httpx.BaseTransport | None = None,
         delay_s: float = DELAY_S,
+        sleep: Callable[[float], None] | None = None,
     ):
-        host = host.strip().rstrip("/")
-        if not host.startswith(("http://", "https://")):
-            host = "http://" + host
-        self.base = host
+        super().__init__(
+            host,
+            name="the switch",
+            scheme="http",
+            timeout=timeout,
+            retries=RETRIES,
+            backoff=RETRY_PAUSE_S,
+            user_agent="omini-plugin-horaco",
+            # One request per connection: the embedded server mishandles kept-alive ones.
+            headers={"Accept": "text/html,*/*", "Connection": "close"},
+            unauthorized="the switch rejected the username or password",
+            transport=transport,
+            sleep=sleep,
+        )
+        self.http.headers["Referer"] = self.base + "/"
         self.username = username
         self.password = password
         self.delay_s = delay_s
         # The last answer of each page, kept to help adapt the parsers to
         # other firmware versions (local only, in the plugin's state folder).
         self.pages_dir = pages_dir
-        self.http = httpx.Client(
-            base_url=host,
-            timeout=timeout,
-            # One request per connection: the embedded server mishandles kept-alive ones.
-            headers={
-                "User-Agent": "omini-plugin-horaco",
-                "Referer": host + "/",
-                "Connection": "close",
-            },
-            transport=transport,
-        )
         # The session cookie is MD5(username + password), the same on every
         # sign-in: pages are read with it directly, and the login form is only
         # posted when the switch asks for it (it keeps a single session and
@@ -87,24 +98,15 @@ class Client:
         self.http.cookies.set("admin", credential(username, password))
         self.logged_in = True
 
-    def close(self) -> None:
-        self.http.close()
+    def send(self, method: str, path: str, **kw) -> httpx.Response:
+        """One request, after a short pause (the server needs it), with the
+        SDK's retries."""
+        if self.delay_s:
+            (self.sleep or time.sleep)(self.delay_s)
+        return super().send(method, path, **kw)
 
     def _request(self, method: str, path: str, **kw) -> httpx.Response:
-        last: Exception | None = None
-        for attempt in range(ATTEMPTS):
-            if self.delay_s:
-                # Longer pauses after a dropped connection: the server needs time.
-                time.sleep(self.delay_s * (1 + 3 * attempt))
-            try:
-                return self.http.request(method, path, **kw)
-            except httpx.HTTPError as e:
-                # Refused connections too: the switch refuses every one for a
-                # few seconds at times, then answers again.
-                last = e
-        if isinstance(last, httpx.ConnectError):
-            raise Unanswered(f"cannot connect to {self.base}: {last}")
-        raise Unanswered(f"{self.base} did not answer {path}: {last}")
+        return self.send(method, path, **kw)
 
     def login(self) -> None:
         token = credential(self.username, self.password)
@@ -119,8 +121,7 @@ class Client:
             },
             headers={"Referer": self.base + "/login.cgi"},
         )
-        if r.status_code >= 400:
-            raise PluginError(f"the switch answered {r.status_code} to the login")
+        self.check(r, "POST", "/login.cgi")
         # A wrong password brings the login form back with an error message.
         if "inpwd" in r.text and ("error" in r.text.lower() or "错误" in r.text):
             raise Rejected("the switch rejected the username or password")
@@ -143,8 +144,7 @@ class Client:
                 r = self._request("POST", path, data=form, headers={"Referer": self.base + path})
             if r.status_code == 404:
                 return ""
-            if r.status_code >= 400:
-                raise PluginError(f"the switch answered {r.status_code} for {path}")
+            self.check(r, "POST" if form else "GET", path)
             html = r.text
             if not signed_out(html):
                 self._keep(path + (f"&pageidx={form['pageidx']}" if form else ""), html)
@@ -163,8 +163,7 @@ class Client:
         for again in (True, False):
             time.sleep(self.delay_s * 2)  # the switch drops a form posted right after a page
             r = self._request("POST", path, data=form, headers={"Referer": self.base + path})
-            if r.status_code >= 400:
-                raise PluginError(f"the switch answered {r.status_code} for {path}")
+            self.check(r, "POST", path)
             if not signed_out(r.text):
                 return
             if again:

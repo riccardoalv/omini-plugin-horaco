@@ -33,3 +33,9 @@ fields:
     label: Password
     required: true
     help: The password of the switch's web interface.
+  - key: timeout_s
+    type: int
+    label: Timeout (seconds)
+    default: 15
+    group: Advanced
+    help: How long to wait for each answer of the switch.

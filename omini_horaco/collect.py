@@ -17,9 +17,12 @@ from omini_sdk import (
     Vlan,
     log,
 )
+from omini_sdk import optional as sdk_optional
+from omini_sdk.changes import apply_verify
+from omini_sdk.http import settings
 
 from omini_horaco import parse
-from omini_horaco.client import Client, Rejected, Unanswered
+from omini_horaco.client import Client, Unanswered
 
 INFO = "/info.cgi"
 STATS = "/port.cgi?page=stats"
@@ -33,6 +36,9 @@ PORT_VLANS = "/vlan.cgi?page=port_based"
 VLAN_NAME_MAX = 14
 # The MAC table is paged on this firmware; never read more than this many pages.
 MAX_MAC_PAGES = 64
+# How long a change waits for the switch's page to show it (the SDK's window).
+VERIFY_S = 30
+POLL_S = 2
 
 
 def client_from(cfg: Config) -> Client:
@@ -40,24 +46,15 @@ def client_from(cfg: Config) -> Client:
     if not host or not user or not password:
         raise PluginError("the address, username and password are required")
     pages = cfg.state_dir / "pages" if cfg.state_dir else None
-    return Client(host, user, password, pages_dir=pages)
+    return Client(host, user, password, timeout=settings(cfg)["timeout"], pages_dir=pages)
 
 
 def optional(what: str, fn, default):
     """Optional pages: one failing never fails the collection (a wrong
-    password does)."""
-    try:
-        return fn()
-    except Rejected:
-        raise
-    except PluginError as e:  # the page did not answer, or answered an error
-        log.warning("skipped %s: %s", what, e)
-        return default
-    except Exception:
-        # Not expected: most likely a page this parser does not understand.
-        # Kept with its traceback so it can be fixed, without failing the rest.
-        log.warning("could not parse %s", what, exc_info=True)
-        return default
+    password does). A page the switch did not answer is logged once; anything
+    else (most likely a page this parser does not understand) with its
+    traceback, so it can be fixed."""
+    return sdk_optional(what, fn, default)
 
 
 # The switch sometimes refuses every connection for a few seconds (it closes
@@ -225,31 +222,55 @@ def apply(cfg: Config, change: Change) -> list[Device]:
             previous = (
                 port_form(form, current, current.enabled) if current.enabled is not None else None
             )
-            c.submit(PORTS, fields)
-            after = parse.parse_port_config(c.page(PORTS)).get(n)
-            if after is None or after.enabled != change.value:
-                undone = restore(c, PORTS, previous)
-                raise PluginError(
-                    f"the switch did not apply the change to {change.port} (not saved{undone})"
-                )
-            c.submit(SAVE, {"cmd": "save"})
+
+            def shown() -> bool:
+                after = parse.parse_port_config(c.page(PORTS)).get(n)
+                return after is not None and after.enabled == change.value
+
+            change_and_save(
+                c,
+                PORTS,
+                fields,
+                shown,
+                restore(c, PORTS, previous),
+                f"the switch did not apply the change to {change.port}",
+            )
     finally:
         c.close()
     return collect(cfg)
 
 
-def restore(c: Client, path: str, previous: dict[str, str] | None) -> str:
-    """Posts a page's form back as it was before a change the switch did not
-    show as asked, so its running configuration is not left half changed
-    until a reboot. Returns how it went, for the error message."""
-    if previous is None:
-        return ", could not be undone: check it on the switch"
-    try:
+def restore(c: Client, path: str, previous: dict[str, str] | None):
+    """The undo of a change the switch did not show as asked: posts the
+    page's form back as it was, so its running configuration is not left half
+    changed until a reboot. Raises when it cannot (the error then says to
+    check it on the switch)."""
+
+    def undo() -> None:
+        if previous is None:
+            raise PluginError(f"the settings of {path} before the change are unknown")
         c.submit(path, previous)
-    except PluginError as e:
-        log.warning("could not undo the change on %s: %s", path, e)
-        return ", could not be undone: check it on the switch"
-    return ", undone"
+
+    return undo
+
+
+def change_and_save(c: Client, path: str, form: dict[str, str], shown, undo, failure: str) -> None:
+    """Posts a page's form (one request, all or nothing), reads the page
+    again until it shows the change (every POLL_S seconds, up to VERIFY_S),
+    and only then saves the configuration (unsaved, a reboot undoes it). A
+    change not shown is undone and never saved."""
+    apply_verify(
+        lambda: c.submit(path, form),
+        shown,
+        undo,
+        timeout=VERIFY_S,
+        interval=POLL_S,
+        message=f"{failure}, not saved",
+        check_in="on the switch",
+        undo_failed_apply=False,
+        sleep=time.sleep,
+    )
+    c.submit(SAVE, {"cmd": "save"})
 
 
 def port_form(form: parse.PortForm, current: parse.PortConfig, enabled: bool) -> dict[str, str]:
@@ -340,14 +361,19 @@ def set_port_vlans(cfg: Config, change: Change) -> None:
             return
         fields = vlan_form(form, untagged, tagged)
         previous = previous_vlan_form(form, row)
-        c.submit(PORT_VLANS, fields)
-        after = existing_only(parse.parse_port_vlans(c.page(PORT_VLANS)), vlan_list).get(n)
-        if port_vlans(after) != wanted:
-            undone = restore(c, PORT_VLANS, previous)
-            raise PluginError(
-                f"the switch did not apply the VLANs of {change.port} (not saved{undone})"
-            )
-        c.submit(SAVE, {"cmd": "save"})
+
+        def shown() -> bool:
+            after = existing_only(parse.parse_port_vlans(c.page(PORT_VLANS)), vlan_list).get(n)
+            return port_vlans(after) == wanted
+
+        change_and_save(
+            c,
+            PORT_VLANS,
+            fields,
+            shown,
+            restore(c, PORT_VLANS, previous),
+            f"the switch did not apply the VLANs of {change.port}",
+        )
     finally:
         c.close()
 
@@ -412,17 +438,26 @@ def set_vlan(cfg: Config, change: Change) -> None:
         old = dict(parse.parse_vlans(c.page(VLANS))).get(vid)
         if old == name:
             return
-        c.submit(VLANS, {"vid": str(vid), "name": name})
-        after = dict(parse.parse_vlans(c.page(VLANS)))
-        if after.get(vid) != name:
-            # A rename is undone with the old name; a new VLAN the switch
-            # created anyway cannot be (deleting VLANs is not supported yet).
-            if old is not None:
-                undone = restore(c, VLANS, {"vid": str(vid), "name": old})
-            else:
-                undone = restore(c, VLANS, None) if vid in after else ""
-            raise PluginError(f"the switch did not take VLAN {vid} {name!r} (not saved{undone})")
-        c.submit(SAVE, {"cmd": "save"})
+        if old is not None:
+            # A rename is undone with the old name.
+            undo = restore(c, VLANS, {"vid": str(vid), "name": old})
+        else:
+
+            def undo() -> None:
+                # A new VLAN the switch created anyway cannot be removed
+                # (deleting VLANs is not supported yet); one it did not create
+                # leaves nothing to undo.
+                if vid in dict(parse.parse_vlans(c.page(VLANS))):
+                    raise PluginError(f"VLAN {vid} cannot be deleted from Omini")
+
+        change_and_save(
+            c,
+            VLANS,
+            {"vid": str(vid), "name": name},
+            lambda: dict(parse.parse_vlans(c.page(VLANS))).get(vid) == name,
+            undo,
+            f"the switch did not take VLAN {vid} {name!r}",
+        )
     finally:
         c.close()
 

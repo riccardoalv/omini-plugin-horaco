@@ -48,11 +48,13 @@ def test_a_dropped_page_never_fails_the_collection(switch, cfg):
     [sw] = collect(cfg)
     assert len(sw.interfaces) == 9  # everything else is there
     assert len(sw.fdb) == 10  # the MAC table's first page
-    assert switch.posts.count("/mac.cgi goto") == 8  # two rounds of tries, with a pause
+    # Tried again once after a pause: a form post that was cut off is never
+    # sent again at once (the SDK's rule for posts).
+    assert switch.posts.count("/mac.cgi goto") == 2
 
 
 def test_paging_waits_out_a_busy_switch(switch, cfg):
-    switch.drop_paging_times = 5  # the first round fails, the second gets through
+    switch.drop_paging_times = 1  # the first try fails, the one after the pause gets through
     [sw] = collect(cfg)
     assert len(sw.fdb) == 13  # both pages
 
@@ -165,10 +167,12 @@ def test_a_switch_that_never_accepts_a_connection(switch, cfg):
 
 
 def test_optional_pages_failing_are_logged(cfg, caplog):
+    from omini_sdk.http import Unavailable
+
     from omini_horaco.collect import optional
 
     def answered_500():
-        raise PluginError("the switch answered 500 for /panel.cgi")
+        raise Unavailable("the switch answered 500 for /panel.cgi", status=500)
 
     def parser_bug():
         raise IndexError("list index out of range")
@@ -178,5 +182,14 @@ def test_optional_pages_failing_are_logged(cfg, caplog):
         assert optional("counters", parser_bug, None) is None
     expected, bug = caplog.records
     # An error the page answered: one line. A parser bug: its traceback.
-    assert (expected.levelname, expected.exc_info) == ("WARNING", None)
+    assert (expected.levelname, expected.exc_info) == ("INFO", None)
     assert bug.levelname == "WARNING" and bug.exc_info[0] is IndexError
+
+
+def test_the_switch_is_reached_over_http_and_the_timeout_is_a_setting(cfg):
+    from omini_horaco.collect import client_from
+
+    cfg["timeout_s"] = 30
+    c = client_from(cfg)
+    assert c.base == "http://192.168.1.96" and c.http.timeout.read == 30
+    c.close()

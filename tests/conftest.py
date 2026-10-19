@@ -122,6 +122,7 @@ class FakeSwitch:
 @pytest.fixture
 def switch(monkeypatch):
     monkeypatch.setattr(collect_module, "BUSY_PAUSE_S", 0)
+    monkeypatch.setattr("time.sleep", lambda _s: None)  # no pauses between tries
     fake = FakeSwitch()
     monkeypatch.setattr(
         collect_module,

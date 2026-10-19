@@ -150,7 +150,11 @@ def test_the_native_vlan_listed_as_tagged_is_dropped(switch, cfg):
 
 def test_a_port_change_not_taken_is_undone(switch, cfg):
     switch.ignore_changes = True
-    with pytest.raises(PluginError, match="not saved, undone"):
+    with pytest.raises(
+        PluginError,
+        match=r"did not apply the change to Port 5, not saved: it was not seen within 30 s "
+        r"\(undone\)$",
+    ):
         apply(cfg, change())
     # The change, then the port's settings as they were (enabled).
     assert [f["state"] for f in switch.forms] == ["0", "1"]
@@ -159,7 +163,7 @@ def test_a_port_change_not_taken_is_undone(switch, cfg):
 
 def test_port_vlans_not_taken_are_undone(switch, cfg):
     switch.ignore_changes = True
-    with pytest.raises(PluginError, match="not saved, undone"):
+    with pytest.raises(PluginError, match=r"not saved: .* \(undone\)$"):
         apply(cfg, change("Port 9", {"untagged": 10}, "port.vlans"))
     # Back to the trunk it was: native 1, VLANs 1, 10 and 20.
     restored = switch.forms[-1]
@@ -170,11 +174,13 @@ def test_port_vlans_not_taken_are_undone(switch, cfg):
 
 def test_a_rename_not_taken_is_undone(switch, cfg):
     switch.ignore_changes = True
-    with pytest.raises(PluginError, match="not saved, undone"):
+    with pytest.raises(PluginError, match=r"not saved: .* \(undone\)$"):
         apply(cfg, change(None, {"id": 10, "name": "Staff"}, "vlan.set"))
     assert switch.forms[-1] == {"vid": "10", "name": "Office"}
-    with pytest.raises(PluginError, match=r"\(not saved\)"):
+    forms = len(switch.forms)
+    with pytest.raises(PluginError, match="not saved"):
         apply(cfg, change(None, {"id": 30, "name": "New"}, "vlan.set"))  # nothing to undo
+    assert len(switch.forms) == forms + 1  # nothing posted back
     assert switch.saved == 0
 
 
@@ -186,3 +192,44 @@ def test_a_trunk_of_every_vlan_carries_those_that_exist(switch, cfg):
     assert vlans_of([sw], "Port 9").model_dump() == {"untagged": 1, "tagged": [10, 20]}
     apply(cfg, change("Port 9", {"untagged": 1, "tagged": [10, 20]}, "port.vlans"))
     assert switch.forms == []  # already so
+
+
+def test_a_change_shown_a_moment_later_is_saved(switch, cfg):
+    # The switch shows the change on the second read: read again, then saved.
+    switch.ignore_changes = True
+    inner = switch.handler
+    reads = {"n": 0}
+
+    def handler(request):
+        if request.method == "GET" and request.url.path == "/port.cgi" and switch.forms:
+            reads["n"] += 1
+            if reads["n"] == 2:
+                switch.disabled.add(5)
+        return inner(request)
+
+    import httpx
+
+    import omini_horaco.collect as collect_module
+
+    collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
+    apply(cfg, change())
+    assert switch.saved == 1 and [f["state"] for f in switch.forms] == ["0"]
+
+
+def test_an_undo_that_fails_says_so(switch, cfg):
+    import httpx
+
+    import omini_horaco.collect as collect_module
+
+    switch.ignore_changes = True
+    inner = switch.handler
+
+    def handler(request):
+        if request.method == "POST" and switch.forms:  # the undo is refused
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return inner(request)
+
+    collect_module.Client.keywords["transport"] = httpx.MockTransport(handler)
+    with pytest.raises(PluginError, match=r"\(could not be undone: check it on the switch\)$"):
+        apply(cfg, change())
+    assert switch.saved == 0
